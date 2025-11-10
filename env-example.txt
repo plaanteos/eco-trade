@@ -1,0 +1,13 @@
+# Configuraciones de base de datos
+MONGODB_URI=mongodb+srv://usuario:contraseña@cluster.mongodb.net/ecotrade
+PORT=5000
+
+# Configuraciones de Firebase
+FIREBASE_SERVICE_ACCOUNT={"type": "service_account", ...}
+
+# Configuraciones de seguridad
+JWT_SECRET=tu_secret_muy_secreto_y_largo
+JWT_EXPIRATION=1h
+
+# Configuraciones de entorno
+NODE_ENV=development
