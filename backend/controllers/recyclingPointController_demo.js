@@ -96,9 +96,11 @@ exports.createPointOperator = async (req, res) => {
   const point = req.recyclingPoint;
   const { username, email, password } = req.body || {};
 
-  if (!username || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email, password' });
+  if (!username || !email) {
+    return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email' });
   }
+
+  const generatedPassword = password ? undefined : 'demoPass1234';
 
   const operator = store.ensureUser({ email, username, country: 'MX' });
 
@@ -112,7 +114,34 @@ exports.createPointOperator = async (req, res) => {
   return res.status(201).json({
     success: true,
     message: 'Operador creado y asignado al punto (modo demo)',
-    data: { operator },
+    data: { operator, generatedPassword },
+  });
+};
+
+exports.setOperatorStatus = async (req, res) => {
+  const point = req.recyclingPoint;
+  const { operatorUserId } = req.params;
+  const { isActive } = req.body || {};
+
+  if (typeof isActive !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'isActive debe ser boolean' });
+  }
+
+  const current = Array.isArray(point.operators) ? point.operators : [];
+  if (!current.some((id) => String(id) === String(operatorUserId))) {
+    return res.status(404).json({ success: false, message: 'El usuario no es operador de este punto' });
+  }
+
+  const u = store.usersById.get(String(operatorUserId));
+  if (u) {
+    u.isActive = isActive;
+    store.usersById.set(String(operatorUserId), u);
+  }
+
+  return res.json({
+    success: true,
+    message: isActive ? 'Operador activado (modo demo)' : 'Operador desactivado (modo demo)',
+    data: { operator: u || { id: operatorUserId, isActive } },
   });
 };
 

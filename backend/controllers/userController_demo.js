@@ -314,3 +314,59 @@ exports.getAllUsers = async (req, res) => {
     });
   }
 };
+
+// Empresa vendedora (modo demo)
+exports.becomeCompanySeller = async (req, res) => {
+  const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });
+  const { companyProfile } = req.body || {};
+
+  const next = {
+    ...demoUser,
+    accountType: 'company',
+    roles: Array.from(new Set([...(demoUser.roles || ['user']), 'seller'])),
+    preferences: { ...(demoUser.preferences || {}), ...(companyProfile ? { companyProfile } : {}) },
+  };
+  store.usersById.set(String(next.id), next);
+
+  return res.json({
+    success: true,
+    message: 'Cuenta actualizada a empresa vendedora (modo demo)',
+    data: { user: next },
+  });
+};
+
+// Activar rol seller (modo demo)
+exports.becomeSeller = async (req, res) => {
+  const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });
+
+  const next = {
+    ...demoUser,
+    roles: Array.from(new Set([...(demoUser.roles || ['user']), 'seller'])),
+  };
+  store.usersById.set(String(next.id), next);
+
+  return res.json({
+    success: true,
+    message: 'Rol seller activado (modo demo)',
+    data: { user: next },
+  });
+};
+
+// Historial de ecoCoins (modo demo)
+exports.getEcoCoinsHistory = async (req, res) => {
+  const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });
+  return res.json({
+    success: true,
+    data: {
+      history: [
+        {
+          type: 'demo',
+          at: new Date().toISOString(),
+          ecoCoinsDelta: 0,
+          reference: 'demo',
+          metadata: { ecoCoinsBalance: demoUser.ecoCoins },
+        },
+      ],
+    },
+  });
+};

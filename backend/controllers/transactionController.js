@@ -55,7 +55,7 @@ exports.createTransaction = async (req, res) => {
       });
     }
 
-    const { product: productId, paymentMethod, delivery, paymentDetails } = req.body;
+    const { product: productId, paymentMethod, delivery, paymentDetails, ecoCoinsAmount } = req.body;
 
     if (!productId || !paymentMethod) {
       return res.status(400).json({
@@ -97,33 +97,97 @@ exports.createTransaction = async (req, res) => {
       });
     }
 
-    const baseEcoCoins = Math.floor(Number(product.price) / 10);
-    const ecoCoinsSeller = Math.round(baseEcoCoins * 0.6);
-    const ecoCoinsBuyer = Math.round(baseEcoCoins * 0.4);
+    const pm = String(paymentMethod);
 
-    const transaction = await prisma.transaction.create({
-      data: {
-        productId: product.id,
-        buyerId: String(req.userId),
-        sellerId: String(product.sellerId),
-        amount: Number(product.price),
-        paymentMethod: String(paymentMethod),
-        paymentDetails: paymentDetails || undefined,
-        delivery: delivery || undefined,
-        ecoCoinsBuyer,
-        ecoCoinsSeller,
-        ecoCoinsTotal: ecoCoinsBuyer + ecoCoinsSeller,
-        metadata: {
-          platform: 'web',
-          userAgent: req.get('user-agent'),
-          ipAddress: req.ip,
+    const transaction = await prisma.$transaction(async (tx) => {
+      // Pago con ecoCoins: transferencia buyer -> seller
+      if (pm.toLowerCase() === 'ecocoins') {
+        const requested = ecoCoinsAmount ?? paymentDetails?.ecoCoinsAmount;
+        const amountEcoCoins = Number(requested);
+
+        if (!Number.isFinite(amountEcoCoins) || amountEcoCoins <= 0 || !Number.isInteger(amountEcoCoins)) {
+          const err = new Error('ecoCoinsAmount debe ser un entero > 0 cuando paymentMethod=ecoCoins');
+          err.code = 'INVALID_ECOCOINS_AMOUNT';
+          throw err;
+        }
+
+        const buyer = await tx.user.findUnique({ where: { id: String(req.userId) }, select: { id: true, ecoCoins: true } });
+        if (!buyer) {
+          const err = new Error('Comprador no encontrado');
+          err.code = 'BUYER_NOT_FOUND';
+          throw err;
+        }
+
+        if (Number(buyer.ecoCoins) < amountEcoCoins) {
+          const err = new Error('Saldo insuficiente de ecoCoins');
+          err.code = 'INSUFFICIENT_ECOCOINS';
+          throw err;
+        }
+
+        await tx.user.update({ where: { id: buyer.id }, data: { ecoCoins: { decrement: amountEcoCoins } } });
+        await tx.user.update({ where: { id: String(product.sellerId) }, data: { ecoCoins: { increment: amountEcoCoins } } });
+
+        await tx.product.update({ where: { id: product.id }, data: { status: 'sold' } });
+
+        return tx.transaction.create({
+          data: {
+            productId: product.id,
+            buyerId: String(req.userId),
+            sellerId: String(product.sellerId),
+            amount: Number(product.price),
+            paymentMethod: 'ecoCoins',
+            paymentDetails: { ...(paymentDetails || {}), ecoCoinsAmount: amountEcoCoins },
+            delivery: delivery || undefined,
+            ecoCoinsBuyer: -amountEcoCoins,
+            ecoCoinsSeller: amountEcoCoins,
+            ecoCoinsTotal: amountEcoCoins,
+            metadata: {
+              platform: 'web',
+              userAgent: req.get('user-agent'),
+              ipAddress: req.ip,
+              ecoCoinsPayment: true,
+            },
+          },
+          include: {
+            product: { select: { id: true, name: true, price: true, status: true } },
+            buyer: { select: { id: true, username: true, email: true } },
+            seller: { select: { id: true, username: true, email: true } },
+          },
+        });
+      }
+
+      // Otros métodos: mantener recompensa basada en precio (legacy)
+      const baseEcoCoins = Math.floor(Number(product.price) / 10);
+      const ecoCoinsSeller = Math.round(baseEcoCoins * 0.6);
+      const ecoCoinsBuyer = Math.round(baseEcoCoins * 0.4);
+
+      // Marcar producto como vendido en transacciones exitosas
+      await tx.product.update({ where: { id: product.id }, data: { status: 'sold' } });
+
+      return tx.transaction.create({
+        data: {
+          productId: product.id,
+          buyerId: String(req.userId),
+          sellerId: String(product.sellerId),
+          amount: Number(product.price),
+          paymentMethod: pm,
+          paymentDetails: paymentDetails || undefined,
+          delivery: delivery || undefined,
+          ecoCoinsBuyer,
+          ecoCoinsSeller,
+          ecoCoinsTotal: ecoCoinsBuyer + ecoCoinsSeller,
+          metadata: {
+            platform: 'web',
+            userAgent: req.get('user-agent'),
+            ipAddress: req.ip,
+          },
         },
-      },
-      include: {
-        product: { select: { id: true, name: true, price: true, status: true } },
-        buyer: { select: { id: true, username: true, email: true } },
-        seller: { select: { id: true, username: true, email: true } },
-      },
+        include: {
+          product: { select: { id: true, name: true, price: true, status: true } },
+          buyer: { select: { id: true, username: true, email: true } },
+          seller: { select: { id: true, username: true, email: true } },
+        },
+      });
     });
 
     res.status(201).json({
@@ -132,6 +196,15 @@ exports.createTransaction = async (req, res) => {
       data: { transaction }
     });
   } catch (err) {
+    if (err?.code === 'INVALID_ECOCOINS_AMOUNT') {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (err?.code === 'INSUFFICIENT_ECOCOINS') {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (err?.code === 'BUYER_NOT_FOUND') {
+      return res.status(404).json({ success: false, message: err.message });
+    }
     res.status(400).json({
       success: false,
       message: 'Error al crear transacción',

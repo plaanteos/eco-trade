@@ -1,157 +1,90 @@
-# 🚀 Configuración de EcoTrade para Producción
+# 🚀 Configuración de EcoTrade para Producción (Prisma + PostgreSQL)
 
-## 📋 Guía Paso a Paso
+EcoTrade en este repositorio corre con **Node/Express** y persiste datos con **Prisma + PostgreSQL** (no MongoDB). El archivo [env-example.txt](env-example.txt) ya refleja esto con `DATABASE_URL`.
 
-### **Paso 1: Configurar MongoDB Atlas (Base de Datos en la Nube)**
+## ✅ Requisitos
 
-1. **Ve a MongoDB Atlas**: [https://www.mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+- Una base de datos PostgreSQL (recomendado: **Supabase**)
+- Un secreto JWT fuerte para producción (`JWT_SECRET`)
+- Configurar CORS en backend (`CORS_ORIGINS`)
 
-2. **Crea tu cuenta gratuita** (si no la tienes)
+## 1) Base de datos (Supabase recomendado)
 
-3. **Crea un nuevo cluster**:
-   - Haz clic en "Create a Free Cluster"
-   - Selecciona tu región (recomendado: **US East** para mejor rendimiento)
-   - Deja las demás opciones por defecto
-   - Haz clic en "Create Cluster" (tardará 1-3 minutos)
+1. Crea un proyecto en Supabase
+2. Obtén el connection string de Postgres (Settings → Database → Connection string)
+3. Configura `DATABASE_URL` (con SSL si tu proveedor lo requiere)
 
-4. **Configura la seguridad**:
-   
-   **4.1 Crear usuario de base de datos:**
-   - Ve a "Database Access" en el menú lateral
-   - Haz clic en "Add New Database User"
-   - Selecciona "Password"
-   - Usuario: `ecotrade_user`
-   - Contraseña: Genera una contraseña segura (¡guárdala!)
-   - Database User Privileges: "Read and write to any database"
-   - Haz clic en "Add User"
+Ejemplo (no copies tal cual, cambia credenciales y host):
 
-   **4.2 Configurar acceso de red:**
-   - Ve a "Network Access" en el menú lateral
-   - Haz clic en "Add IP Address"
-   - Selecciona "Allow Access from Anywhere" (0.0.0.0/0)
-   - Haz clic en "Confirm"
-
-5. **Obtener cadena de conexión**:
-   - Ve a "Clusters" en el menú lateral
-   - En tu cluster, haz clic en "Connect"
-   - Selecciona "Connect your application"
-   - Selecciona "Node.js" y versión "4.1 or later"
-   - Copia la cadena de conexión que se ve así:
-   ```
-   mongodb+srv://ecotrade_user:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
-   ```
-
-### **Paso 2: Configurar Variables de Entorno**
-
-1. **Copia el ejemplo de configuración**:
-   ```powershell
-   copy env-example.txt .env
-   ```
-
-2. **Edita el archivo `.env` (obligatorio en producción)**:
-   - Abre el archivo `.env` en VS Code
-   - Reemplaza `TU_USUARIO:TU_PASSWORD` con tus datos reales
-   - Agrega el nombre de la base de datos al final: `/ecotrade`
-   - Configura `JWT_SECRET` (sin esto la API no inicia en producción)
-   - Configura `CORS_ORIGINS` con el/los dominios reales del frontend
-   - Asegúrate de `DEMO_MODE=false`
-   - Asegúrate de `NODE_ENV=production`
-   
-   **Ejemplo:**
-   ```
-   MONGODB_URI=mongodb+srv://ecotrade_user:mi_password_123@cluster0.abc123.mongodb.net/ecotrade?retryWrites=true&w=majority
-   ```
-
-### **Paso 3: Inicializar la Base de Datos**
-
-1. **Ejecuta el script de inicialización**:
-   ```powershell
-   npm run init-db
-   ```
-   
-   Esto creará:
-   - ✅ Un usuario administrador
-   - ✅ 10 productos de muestra
-   - ✅ Índices optimizados para búsquedas
-
-### **Paso 4: Iniciar EcoTrade**
-
-1. **Iniciar el backend (producción)**:
-   ```powershell
-   npm start
-   ```
-   
-   Deberías ver:
-   ```
-   🔌 Conectando a MongoDB...
-   ✅ MongoDB conectado exitosamente: cluster0.xxxxx.mongodb.net
-   📊 Base de datos: ecotrade
-   🚀 Servidor EcoTrade corriendo en puerto 5000
-   ```
-
-2. **Construir el frontend (Vite + React + TypeScript)**:
-   ```powershell
-   npm run frontend:build
-   ```
-
-   Luego publica la carpeta generada por Vite (normalmente `EcoTrade project overview/dist`) en un servidor estático (Nginx/Apache/Vercel/Netlify).
-
-   Importante: en el hosting del frontend define `VITE_API_URL` apuntando a tu API, por ejemplo:
-   ```
-   VITE_API_URL=https://api.tu-dominio.com/api
-   ```
-
-3. **¡Acceder a EcoTrade!**
-   - Frontend: (tu dominio / hosting estático)
-   - API: http://localhost:5000
-   - Documentación: http://localhost:5000/api-docs
-
-### **Paso 5: Verificar Funcionamiento**
-
-1. **Probar el login**:
-   - Usuario: `admin@ecotrade.com`
-   - Contraseña: `admin123`
-
-2. **Verificar productos**:
-   - Ve a la sección de búsqueda
-   - Deberías ver 10 productos disponibles
-
-3. **Crear un producto nuevo**:
-   - Llena el formulario de producto
-   - Verifica que se guarde en la base de datos real
-
-## 🔧 Solución de Problemas
-
-### Error: "Error conectando a MongoDB"
-- ✅ Verifica que la cadena de conexión sea correcta
-- ✅ Asegúrate de que tu IP esté en la lista blanca
-- ✅ Confirma que el usuario y contraseña sean correctos
-
-### Error: "EADDRINUSE puerto 5000"
-```powershell
-Stop-Process -Name "node" -Force
-npm run dev
+```bash
+DATABASE_URL=postgresql://usuario:password@host:5432/db?schema=public
 ```
 
-### Base de datos vacía
+## 2) Variables de entorno (backend)
+
+Para local:
+
 ```powershell
-npm run init-db
+copy env-example.txt .env
 ```
 
-## 🌍 Siguientes Pasos para Producción Real
+Variables importantes:
 
-1. **Deploy a Heroku/Railway/Vercel**
-2. **Configurar dominio personalizado**
-3. **Implementar SSL/HTTPS**
-4. **Monitoreo y analytics**
-5. **Backups automáticos**
+- `DATABASE_URL`: conexión a PostgreSQL
+- `JWT_SECRET`: obligatorio en producción (sin esto la API no inicia)
+- `CORS_ORIGINS`: lista separada por comas con dominios permitidos (ej: `https://tu-frontend.vercel.app`)
+- `NODE_ENV=production`
+- `DEMO_MODE=false` (no usar en producción)
 
-## 📞 Soporte
+## 3) Preparar el esquema en la DB (Prisma)
 
-Si tienes problemas, verifica:
-1. ✅ MongoDB Atlas configurado correctamente
-2. ✅ Variables de entorno en archivo `.env`
-3. ✅ Internet funcionando
-4. ✅ Puertos 3000 y 5000 disponibles
+Antes de levantar en producción, aplica el esquema de Prisma a tu base de datos.
 
-**¡EcoTrade estará listo para cambiar el mundo! 🌱💚**
+Opciones típicas:
+
+- Para entornos gestionados/CI: `npx prisma migrate deploy`
+- Para un despliegue inicial rápido (sin migraciones): `npx prisma db push`
+
+Nota: el backend devuelve un error claro si faltan tablas/relaciones.
+
+## 4) Deploy en Vercel
+
+Este repo ya incluye configuración serverless en [api/index.js](api/index.js) + [vercel.json](vercel.json).
+
+En Vercel configura Environment Variables:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `CORS_ORIGINS` (tu dominio de frontend)
+- `NODE_ENV=production`
+- `DEMO_MODE=false`
+
+Si usas Supabase Auth/Storage desde backend, agrega también:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (solo backend)
+- `SUPABASE_STORAGE_BUCKET`
+
+## 5) Frontend (Vite)
+
+En el proyecto `frontend/` define `VITE_API_URL` apuntando a tu API:
+
+```bash
+VITE_API_URL=https://tu-api.vercel.app/api
+```
+
+Build local:
+
+```bash
+npm run frontend:build
+```
+
+## 🧩 Nota sobre scripts legacy
+
+El script `npm run init-db` apunta a un inicializador histórico basado en Mongo/Mongoose y **no aplica** al stack Prisma/PostgreSQL actual. Para producción, el “init” correcto es aplicar Prisma (`migrate deploy`/`db push`).
+
+## 🔧 Troubleshooting rápido
+
+- Error `JWT_SECRET no está configurado`: define `JWT_SECRET` en tu entorno.
+- Error de tablas/relaciones: ejecuta `npx prisma db push` o `npx prisma migrate deploy` contra la DB configurada en `DATABASE_URL`.
+- Problemas de CORS: asegúrate de incluir exactamente tu dominio en `CORS_ORIGINS`.

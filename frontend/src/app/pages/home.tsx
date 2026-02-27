@@ -1,11 +1,12 @@
 import { Link } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Leaf, Recycle, Coins, TrendingUp, Users, ShoppingBag } from 'lucide-react';
+import { Recycle, Coins, TrendingUp, Users, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 
 export function HomePage() {
   const { user } = useAuth();
+  const isSeller = Boolean(user?.roles?.includes('seller'));
 
   return (
     <div className="space-y-12">
@@ -24,12 +25,13 @@ export function HomePage() {
               Explorar Productos
             </Button>
           </Link>
-          <Link to="/sell">
-            <Button size="lg" variant="outline" className="bg-white/10 border-white text-white hover:bg-white/20 gap-2">
-              <Leaf className="w-5 h-5" />
-              Vender Producto
-            </Button>
-          </Link>
+          {isSeller && (
+            <Link to="/sell">
+              <Button size="lg" variant="outline" className="bg-white/10 border-white text-white hover:bg-white/20 gap-2">
+                Vender Producto
+              </Button>
+            </Link>
+          )}
         </div>
       </section>
 

@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { userValidationSchemas } = require('../utils/validationSchemas');
 const crypto = require('crypto');
+const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
 const { getSupabaseAdmin } = require('../config/supabaseClient');
 
@@ -818,3 +819,202 @@ function calculateUserLevel(sustainabilityScore) {
   if (sustainabilityScore < 80) return 'Advanced';
   return 'Expert';
 }
+
+function ensureDbOr503(res) {
+  if (!isConnected()) {
+    res.status(503).json({ success: false, message: 'Base de datos no disponible' });
+    return false;
+  }
+  return true;
+}
+
+function unionRoles(currentRoles, rolesToAdd) {
+  const set = new Set([...(Array.isArray(currentRoles) ? currentRoles : []).map(String)]);
+  for (const r of Array.isArray(rolesToAdd) ? rolesToAdd : []) set.add(String(r));
+  return Array.from(set);
+}
+
+/**
+ * Convertir cuenta a empresa vendedora (Opción B: mismo usuario + permisos extra)
+ */
+exports.becomeCompanySeller = async (req, res) => {
+  try {
+    if (!ensureDbOr503(res)) return;
+
+    const { companyProfile } = req.body || {};
+    const prisma = getPrisma();
+
+    const current = await prisma.user.findUnique({
+      where: { id: String(req.userId) },
+      select: { id: true, roles: true, accountType: true, preferences: true },
+    });
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const nextRoles = unionRoles(current.roles, ['seller']);
+    const nextPreferences = {
+      ...(current.preferences || {}),
+      ...(companyProfile ? { companyProfile } : {}),
+    };
+
+    const updated = await prisma.user.update({
+      where: { id: String(req.userId) },
+      data: {
+        accountType: 'company',
+        roles: { set: nextRoles },
+        preferences: nextPreferences,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        accountType: true,
+        roles: true,
+        ecoCoins: true,
+        preferences: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Cuenta actualizada a empresa vendedora',
+      data: { user: { ...updated, _id: updated.id } },
+    });
+  } catch (error) {
+    console.error('Error en becomeCompanySeller:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Activar rol de vendedor (sin cambiar accountType)
+ */
+exports.becomeSeller = async (req, res) => {
+  try {
+    if (!ensureDbOr503(res)) return;
+
+    const prisma = getPrisma();
+    const current = await prisma.user.findUnique({
+      where: { id: String(req.userId) },
+      select: { id: true, roles: true, accountType: true, preferences: true },
+    });
+
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const nextRoles = unionRoles(current.roles, ['seller']);
+
+    const updated = await prisma.user.update({
+      where: { id: String(req.userId) },
+      data: { roles: { set: nextRoles } },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        accountType: true,
+        roles: true,
+        ecoCoins: true,
+        preferences: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Rol seller activado',
+      data: { user: { ...updated, _id: updated.id } },
+    });
+  } catch (error) {
+    console.error('Error en becomeSeller:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Historial de ecoCoins: entregas de reciclaje + pagos con ecoCoins
+ */
+exports.getEcoCoinsHistory = async (req, res) => {
+  try {
+    if (!ensureDbOr503(res)) return;
+
+    const prisma = getPrisma();
+    const userId = String(req.userId);
+
+    const [submissions, ecoCoinTxs] = await Promise.all([
+      prisma.recyclingSubmission.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          id: true,
+          submissionCode: true,
+          createdAt: true,
+          verificationStatus: true,
+          rewards: true,
+          recyclingPoint: { select: { id: true, name: true, city: true } },
+        },
+      }),
+      prisma.transaction.findMany({
+        where: {
+          OR: [{ buyerId: userId }, { sellerId: userId }],
+          paymentMethod: { equals: 'ecoCoins', mode: 'insensitive' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          id: true,
+          createdAt: true,
+          product: { select: { id: true, name: true } },
+          buyerId: true,
+          sellerId: true,
+          ecoCoinsBuyer: true,
+          ecoCoinsSeller: true,
+          ecoCoinsTotal: true,
+        },
+      }).catch(() => []),
+    ]);
+
+    const rows = [];
+
+    for (const s of submissions) {
+      const total = Number(s.rewards?.totalEcoCoins) || 0;
+      rows.push({
+        type: 'recycling_submission',
+        id: s.id,
+        at: s.createdAt,
+        ecoCoinsDelta: total,
+        status: s.verificationStatus,
+        reference: s.submissionCode,
+        metadata: {
+          recyclingPoint: s.recyclingPoint ? { id: s.recyclingPoint.id, name: s.recyclingPoint.name, city: s.recyclingPoint.city } : null,
+        },
+      });
+    }
+
+    for (const t of ecoCoinTxs) {
+      const isBuyer = String(t.buyerId) === userId;
+      const delta = isBuyer ? Number(t.ecoCoinsBuyer) || 0 : Number(t.ecoCoinsSeller) || 0;
+      rows.push({
+        type: 'ecoCoins_payment',
+        id: t.id,
+        at: t.createdAt,
+        ecoCoinsDelta: delta,
+        reference: t.product?.name || t.id,
+        metadata: { productId: t.product?.id, role: isBuyer ? 'buyer' : 'seller', ecoCoinsTotal: t.ecoCoinsTotal },
+      });
+    }
+
+    rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+    return res.json({
+      success: true,
+      data: {
+        history: rows.slice(0, 200),
+      },
+    });
+  } catch (error) {
+    console.error('Error en getEcoCoinsHistory:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};

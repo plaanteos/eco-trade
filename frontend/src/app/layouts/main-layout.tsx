@@ -9,7 +9,6 @@ import {
   Recycle,
   User,
   LogOut,
-  Leaf,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import {
@@ -34,6 +33,7 @@ export function MainLayout() {
   }, [user, isLoading, navigate]);
 
   const isStaff = Boolean(user?.recyclingAccess?.isStaff);
+  const isSeller = Boolean(user?.roles?.includes('seller'));
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -80,7 +80,7 @@ export function MainLayout() {
     : [
         { to: '/', icon: Home, label: 'Inicio' },
         { to: '/search', icon: Search, label: 'Buscar' },
-        { to: '/sell', icon: Package, label: 'Vender' },
+        ...(isSeller ? [{ to: '/sell', icon: Package, label: 'Vender' }] : []),
         { to: '/ecocoins', icon: Coins, label: 'EcoCoins' },
         { to: '/recycling', icon: Recycle, label: 'Reciclaje' },
       ];
@@ -93,10 +93,11 @@ export function MainLayout() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
-                <Leaf className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">EcoTrade</span>
+              <img
+                src="/ecotrade-logo.png"
+                alt="EcoTrade"
+                className="h-10 w-auto"
+              />
             </Link>
 
             {/* Navigation */}
@@ -201,10 +202,11 @@ export function MainLayout() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
-                  <Leaf className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold text-gray-900">EcoTrade</span>
+                <img
+                  src="/ecotrade-logo.png"
+                  alt="EcoTrade"
+                  className="h-8 w-auto"
+                />
               </div>
               <p className="text-sm text-gray-600">
                 Plataforma de economía circular para un futuro sostenible.

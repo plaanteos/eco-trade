@@ -17,7 +17,8 @@ const recyclingSubmissionController = isDemoMode
 const {
 	loadRecyclingPoint,
 	requirePointAdmin,
-	requirePointOperatorOrAdmin
+	requirePointOperatorOrAdmin,
+	requirePointOperator
 } = isDemoMode ? require('../middleware/recyclingAccess_demo') : require('../middleware/recyclingAccess');
 
 // =================== RUTAS DE PUNTOS DE RECICLAJE ===================
@@ -40,6 +41,9 @@ router.get('/points/:id/operators', authenticate, loadRecyclingPoint('id'), requ
 router.post('/points/:id/operators', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.createPointOperator);
 router.delete('/points/:id/operators/:operatorUserId', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.removePointOperator);
 
+// Activar / desactivar operadores
+router.patch('/points/:id/operators/:operatorUserId/status', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.setOperatorStatus);
+
 // Stats (Operador o Admin)
 router.get('/points/:id/deliveries/stats', authenticate, loadRecyclingPoint('id'), requirePointOperatorOrAdmin(), recyclingPointController.getPointDeliveryStats);
 
@@ -56,7 +60,7 @@ router.post(
 	'/points/:pointId/submissions/register',
 	authenticate,
 	loadRecyclingPoint('pointId'),
-	requirePointOperatorOrAdmin(),
+	requirePointOperator(),
 	recyclingSubmissionController.registerDeliveryByOperator
 );
 

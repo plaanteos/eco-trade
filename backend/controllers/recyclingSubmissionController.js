@@ -97,6 +97,32 @@ function appendTracking(tracking, nextStatus, userId, details) {
   };
 }
 
+async function isPointStaff(prisma, pointId, userId) {
+  if (!pointId || !userId) return false;
+  const pid = String(pointId);
+  const uid = String(userId);
+
+  const point = await prisma.recyclingPoint.findUnique({
+    where: { id: pid },
+    select: { administratorId: true },
+  }).catch(() => null);
+  if (point?.administratorId && String(point.administratorId) === uid) return true;
+
+  const membership = await prisma.recyclingPointOperator.findUnique({
+    where: { pointId_userId: { pointId: pid, userId: uid } },
+    select: { id: true },
+  }).catch(() => null);
+  return Boolean(membership);
+}
+
+function getRewardFlags(rewards) {
+  const r = rewards && typeof rewards === 'object' ? rewards : {};
+  return {
+    rewardDistributed: Boolean(r.rewardDistributed),
+    distributedEcoCoins: Number(r.distributedEcoCoins ?? r.totalEcoCoins ?? 0) || 0,
+  };
+}
+
 exports.getAllSubmissions = async (req, res) => {
   try {
     if (!ensureDb(res)) return;
@@ -300,20 +326,48 @@ exports.registerDeliveryByOperator = async (req, res) => {
       };
     });
 
-    const created = await prisma.recyclingSubmission.create({
-      data: {
-        userId: user.id,
-        submissionCode,
-        recyclingPointId: String(point.id),
-        materials: normalizedMaterials,
-        submissionDetails: { ...(submissionDetails || {}), submissionNotes: submissionNotes || '' },
-        tracking: appendTracking({ currentStatus: 'arrived', history: [] }, 'arrived', req.userId),
-        verificationStatus: 'pending',
-      },
-      include: {
-        user: { select: { id: true, username: true, email: true, recyclingCode: true } },
-        recyclingPoint: { select: { id: true, name: true, city: true } },
-      },
+    // Calcular recompensa en el momento del registro (flujo asistido)
+    const rewards = calcRewards(point.acceptedMaterials, normalizedMaterials);
+
+    const created = await prisma.$transaction(async (tx) => {
+      const submission = await tx.recyclingSubmission.create({
+        data: {
+          userId: user.id,
+          submissionCode,
+          recyclingPointId: String(point.id),
+          materials: normalizedMaterials,
+          submissionDetails: {
+            ...(submissionDetails || {}),
+            submissionNotes: submissionNotes || '',
+            actualTotalWeight: rewards.actualTotalWeight,
+            verifiedMaterials: rewards.items,
+          },
+          verifiedById: String(req.userId),
+          verificationDate: new Date(),
+          verificationStatus: rewards.totalEcoCoins > 0 ? 'approved' : 'rejected',
+          rewards: {
+            totalEcoCoins: rewards.totalEcoCoins,
+            breakdown: rewards.items,
+            rewardDistributed: rewards.totalEcoCoins > 0,
+            distributedEcoCoins: rewards.totalEcoCoins,
+            rewardDistributionDate: rewards.totalEcoCoins > 0 ? new Date().toISOString() : null,
+          },
+          tracking: appendTracking({ currentStatus: 'arrived', history: [] }, 'completed', req.userId, { registeredByOperator: true }),
+        },
+        include: {
+          user: { select: { id: true, username: true, email: true, recyclingCode: true } },
+          recyclingPoint: { select: { id: true, name: true, city: true } },
+        },
+      });
+
+      if (rewards.totalEcoCoins > 0) {
+        await tx.user.update({
+          where: { id: String(user.id) },
+          data: { ecoCoins: { increment: rewards.totalEcoCoins } },
+        });
+      }
+
+      return submission;
     });
 
     return res.status(201).json({
@@ -323,6 +377,7 @@ exports.registerDeliveryByOperator = async (req, res) => {
         submission: { ...created, _id: created.id },
         submissionCode,
         user: { id: user.id, username: user.username, recyclingCode: user.recyclingCode },
+        ecoCoinsAwarded: Number(created.rewards?.totalEcoCoins) || rewards.totalEcoCoins,
       },
     });
   } catch (error) {
@@ -352,8 +407,10 @@ exports.verifySubmission = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
     }
 
-    if (String(submission.recyclingPoint?.administratorId || '') !== String(req.userId)) {
-      return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede verificar' });
+    // Permiso: admin del punto o operador asignado al punto
+    const staff = await isPointStaff(prisma, submission.recyclingPointId, req.userId);
+    if (!staff) {
+      return res.status(403).json({ success: false, message: 'Solo el staff del punto (admin u operador) puede verificar' });
     }
 
     let usedMaterials = null;
@@ -399,8 +456,26 @@ exports.verifySubmission = async (req, res) => {
         },
       });
 
-      if ((status === 'approved' || status === 'partially_approved') && rewards.totalEcoCoins > 0) {
+      // Evitar doble distribución si la entrega ya acreditó ecoCoins.
+      const flags = getRewardFlags(submission.rewards);
+      const shouldDistribute = (status === 'approved' || status === 'partially_approved')
+        && rewards.totalEcoCoins > 0
+        && flags.rewardDistributed !== true;
+
+      if (shouldDistribute) {
         await tx.user.update({ where: { id: submission.userId }, data: { ecoCoins: { increment: rewards.totalEcoCoins } } });
+        await tx.recyclingSubmission.update({
+          where: { id: submissionId },
+          data: {
+            rewards: {
+              totalEcoCoins: rewards.totalEcoCoins,
+              breakdown: rewards.items,
+              rewardDistributed: true,
+              distributedEcoCoins: rewards.totalEcoCoins,
+              rewardDistributionDate: new Date().toISOString(),
+            },
+          },
+        });
       }
 
       return newSubmission;
@@ -524,14 +599,15 @@ exports.updateSubmissionStatus = async (req, res) => {
     const prisma = getPrisma();
     const submission = await prisma.recyclingSubmission.findUnique({
       where: { id: String(submissionId) },
-      select: { id: true, tracking: true, recyclingPoint: { select: { administratorId: true } } },
+      select: { id: true, tracking: true, recyclingPointId: true },
     });
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Submission no encontrada' });
     }
 
-    if (String(submission.recyclingPoint?.administratorId || '') !== String(req.userId)) {
-      return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede realizar esta acción' });
+    const staff = await isPointStaff(prisma, submission.recyclingPointId || submission.recyclingPoint?.id, req.userId);
+    if (!staff) {
+      return res.status(403).json({ success: false, message: 'Solo el staff del punto (admin u operador) puede realizar esta acción' });
     }
 
     const updated = await prisma.recyclingSubmission.update({
@@ -564,8 +640,9 @@ exports.getPendingSubmissions = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Punto de reciclaje no encontrado' });
     }
 
-    if (String(point.administratorId) !== String(req.userId)) {
-      return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede verificar' });
+    const staff = await isPointStaff(prisma, point.id, req.userId);
+    if (!staff) {
+      return res.status(403).json({ success: false, message: 'Solo el staff del punto (admin u operador) puede revisar pendientes' });
     }
 
     const take = Math.min(200, Math.max(1, Number(limit) || 50));

@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
 
@@ -311,11 +312,15 @@ exports.createPointOperator = async (req, res) => {
     const pointId = String(req.recyclingPoint.id);
     const { username, email, password } = req.body || {};
 
-    if (!username || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email, password' });
+    if (!username || !email) {
+      return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email' });
     }
 
-    if (String(password).length < 8) {
+    const plainPassword = password
+      ? String(password)
+      : crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+
+    if (String(plainPassword).length < 8) {
       return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
     }
 
@@ -334,7 +339,7 @@ exports.createPointOperator = async (req, res) => {
     }
 
     // Nota: el operador es un usuario normal, el rol operativo es por punto.
-    const passwordHash = await bcrypt.hash(String(password), 10);
+    const passwordHash = await bcrypt.hash(String(plainPassword), 10);
 
     // recyclingCode único
     let recyclingCode = `ET-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
@@ -365,11 +370,58 @@ exports.createPointOperator = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Operador creado y asignado al punto',
-      data: { operator: { ...operator, _id: operator.id } },
+      data: {
+        operator: { ...operator, _id: operator.id },
+        generatedPassword: password ? undefined : plainPassword,
+      },
     });
   } catch (error) {
     console.error('Error en createPointOperator:', error);
     return res.status(500).json({ success: false, message: 'Error al crear operador' });
+  }
+};
+
+exports.setOperatorStatus = async (req, res) => {
+  try {
+    if (!ensureDb(res)) return;
+
+    const pointId = String(req.recyclingPoint.id);
+    const operatorUserId = String(req.params.operatorUserId);
+    const { isActive } = req.body || {};
+
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'isActive debe ser boolean' });
+    }
+
+    const prisma = getPrisma();
+
+    // Verificar que el usuario pertenece como operador al punto
+    const membership = await prisma.recyclingPointOperator.findUnique({
+      where: { pointId_userId: { pointId, userId: operatorUserId } },
+      select: { id: true },
+    }).catch(() => null);
+
+    if (!membership) {
+      return res.status(404).json({ success: false, message: 'El usuario no es operador de este punto' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: operatorUserId },
+      data: { isActive },
+      select: { id: true, username: true, email: true, isActive: true },
+    });
+
+    return res.json({
+      success: true,
+      message: isActive ? 'Operador activado' : 'Operador desactivado',
+      data: { operator: { ...updated, _id: updated.id } },
+    });
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ success: false, message: 'Operador no encontrado' });
+    }
+    console.error('Error en setOperatorStatus:', error);
+    return res.status(500).json({ success: false, message: 'Error al actualizar estado del operador' });
   }
 };
 

@@ -76,6 +76,21 @@ function requirePointOperatorOrAdmin() {
   };
 }
 
+function requirePointOperator() {
+  return (req, res, next) => {
+    const point = req.recyclingPoint;
+    const role = resolvePointRole(req.userId, point);
+    req.pointRole = role;
+
+    if (role === 'operator') return next();
+
+    return res.status(403).json({
+      success: false,
+      message: 'Solo un operador asignado puede registrar entregas en este punto'
+    });
+  };
+}
+
 function requirePointAdmin() {
   return (req, res, next) => {
     const point = req.recyclingPoint;
@@ -94,6 +109,7 @@ function requirePointAdmin() {
 module.exports = {
   loadRecyclingPoint,
   requirePointOperatorOrAdmin,
+  requirePointOperator,
   requirePointAdmin,
   resolvePointRole
 };

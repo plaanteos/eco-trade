@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Leaf, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function LoginPage() {
@@ -54,10 +54,11 @@ export function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-full mb-4">
-            <Leaf className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">EcoTrade</h1>
+          <img
+            src="/ecotrade-logo.png"
+            alt="EcoTrade"
+            className="h-16 w-auto mx-auto mb-4"
+          />
           <p className="text-gray-600 mt-2">Economía circular sostenible</p>
         </div>
 

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { getPrisma } = require('../config/prismaClient');
+const { normalizeRoles, hasPermission } = require('../utils/rbac');
 
 function requireJwtSecret() {
   const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? undefined : 'default_secret');
@@ -118,9 +119,7 @@ const authorize = (...roles) => {
       });
     }
 
-    const userRoles = Array.isArray(req.user.roles)
-      ? req.user.roles
-      : (req.user.role ? [req.user.role] : []);
+    const userRoles = normalizeRoles(req.user);
 
     const hasAnyRequiredRole = roles.length === 0
       ? true
@@ -130,6 +129,31 @@ const authorize = (...roles) => {
       return res.status(403).json({ 
         success: false,
         message: `Acceso denegado. Roles requeridos: ${roles.join(', ')}`,
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    next();
+  };
+};
+
+/**
+ * Middleware RBAC por permiso (además de los checks por punto en recyclingAccess)
+ */
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no autenticado',
+        code: 'NOT_AUTHENTICATED'
+      });
+    }
+
+    if (!hasPermission(req.user, permission)) {
+      return res.status(403).json({
+        success: false,
+        message: `Permiso requerido: ${String(permission)}`,
         code: 'INSUFFICIENT_PERMISSIONS'
       });
     }
@@ -186,5 +210,6 @@ const optionalAuth = async (req, res, next) => {
 module.exports = {
   authenticate,
   authorize,
-  optionalAuth
+  optionalAuth,
+  requirePermission,
 };

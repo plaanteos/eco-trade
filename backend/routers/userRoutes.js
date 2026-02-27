@@ -21,6 +21,15 @@ router.put('/profile', authenticate, userController.updateProfile);
 router.put('/onboarding', authenticate, userController.completeOnboarding);
 router.get('/stats', authenticate, userController.getStats);
 
+// EcoCoins
+router.get('/ecocoins/history', authenticate, userController.getEcoCoinsHistory);
+
+// Activar rol seller (sin cambiar accountType)
+router.post('/seller/activate', authenticate, userController.becomeSeller);
+
+// Empresa vendedora (Opción B: usuario + rol seller)
+router.post('/company/activate-seller', authenticate, userController.becomeCompanySeller);
+
 // Rutas de administrador
 router.get('/', authenticate, authorize('admin'), userController.getAllUsers);
 

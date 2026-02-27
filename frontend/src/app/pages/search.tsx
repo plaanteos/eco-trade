@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth-context';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
@@ -43,6 +44,8 @@ interface Product {
 }
 
 export function SearchPage() {
+  const { user } = useAuth();
+  const isSeller = Boolean(user?.roles?.includes('seller'));
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -238,10 +241,12 @@ export function SearchPage() {
             <p className="text-gray-500 mb-4">
               No se encontraron productos con estos filtros
             </p>
-            <Button onClick={() => navigate('/sell')} className="gap-2">
-              <Leaf className="w-4 h-4" />
-              Publica el primer producto
-            </Button>
+            {isSeller && (
+              <Button onClick={() => navigate('/sell')} className="gap-2">
+                <Leaf className="w-4 h-4" />
+                Publica el primer producto
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

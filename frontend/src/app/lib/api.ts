@@ -107,8 +107,25 @@ class ApiClient {
     });
   }
 
+  async activateCompanySeller(payload?: { companyProfile?: any }) {
+    return this.request<ApiResponse>('/users/company/activate-seller', {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async activateSellerRole() {
+    return this.request<ApiResponse>('/users/seller/activate', {
+      method: 'POST',
+    });
+  }
+
   async getStats() {
     return this.request<ApiResponse>('/users/stats');
+  }
+
+  async getEcoCoinsHistory() {
+    return this.request<ApiResponse>('/users/ecocoins/history');
   }
 
   // Products endpoints
@@ -181,9 +198,10 @@ class ApiClient {
 
   async createTransaction(transactionData: {
     product: string;
-    buyer: string;
-    seller: string;
-    amount: number;
+    paymentMethod: string;
+    delivery?: any;
+    paymentDetails?: any;
+    ecoCoinsAmount?: number;
   }) {
     return this.request<ApiResponse>('/transactions', {
       method: 'POST',

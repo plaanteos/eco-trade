@@ -24,13 +24,25 @@ interface UserStats {
   monthlyGrowth: number;
 }
 
+interface EcoCoinsHistoryRow {
+  id: string;
+  type: string;
+  at: string;
+  ecoCoinsDelta: number;
+  reference?: string;
+  status?: string;
+  metadata?: any;
+}
+
 export function EcoCoinsPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [history, setHistory] = useState<EcoCoinsHistoryRow[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadStats();
+    loadHistory();
   }, []);
 
   const loadStats = async () => {
@@ -45,6 +57,38 @@ export function EcoCoinsPage() {
       setIsLoading(false);
     }
   };
+
+  const loadHistory = async () => {
+    try {
+      const response = await api.getEcoCoinsHistory();
+      if (response.success) {
+        const rows = (response.data as any)?.history;
+        setHistory(Array.isArray(rows) ? rows : []);
+      }
+    } catch (error) {
+      console.error('Error loading ecoCoins history:', error);
+      setHistory(null);
+    }
+  };
+
+  const historyItems = (history || []).map((row) => {
+    const delta = Number(row.ecoCoinsDelta) || 0;
+    const isPositive = delta > 0;
+    const date = row.at ? new Date(row.at).toISOString().slice(0, 10) : '';
+    const description =
+      row.type === 'recycling_submission'
+        ? 'Entrega de reciclaje'
+        : row.type === 'ecoCoins_payment'
+          ? 'Pago con EcoCoins'
+          : 'Movimiento de EcoCoins';
+    return {
+      id: row.id,
+      amount: delta,
+      isPositive,
+      description: row.reference ? `${description}: ${row.reference}` : description,
+      date,
+    };
+  });
 
   const currentBalance = user?.ecoCoins || stats?.ecoCoins || 0;
   const sustainabilityScore = user?.sustainabilityScore || stats?.sustainabilityScore || 0;
@@ -268,49 +312,49 @@ export function EcoCoinsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Demo history items */}
-                {[
-                  {
-                    id: 1,
-                    type: 'earn',
-                    description: 'Producto vendido',
-                    amount: 50,
-                    date: '2026-02-20',
-                  },
-                  {
-                    id: 2,
-                    type: 'earn',
-                    description: 'Registro completado',
-                    amount: 50,
-                    date: '2026-02-15',
-                  },
-                  {
-                    id: 3,
-                    type: 'spend',
-                    description: 'Descuento canjeado',
-                    amount: -100,
-                    date: '2026-02-10',
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between py-3 border-b last:border-0"
-                  >
-                    <div>
-                      <div className="font-medium">{item.description}</div>
-                      <div className="text-sm text-gray-500">{item.date}</div>
-                    </div>
+                {history && historyItems.length === 0 ? (
+                  <div className="text-sm text-gray-600">Aún no hay movimientos.</div>
+                ) : (
+                  (history ? historyItems : [
+                    {
+                      id: 1,
+                      description: 'Producto vendido',
+                      amount: 50,
+                      date: '2026-02-20',
+                    },
+                    {
+                      id: 2,
+                      description: 'Registro completado',
+                      amount: 50,
+                      date: '2026-02-15',
+                    },
+                    {
+                      id: 3,
+                      description: 'Descuento canjeado',
+                      amount: -100,
+                      date: '2026-02-10',
+                    },
+                  ]).map((item: any) => (
                     <div
-                      className={`flex items-center gap-1 font-semibold ${
-                        item.amount > 0 ? 'text-green-600' : 'text-red-600'
-                      }`}
+                      key={item.id}
+                      className="flex items-center justify-between py-3 border-b last:border-0"
                     >
-                      {item.amount > 0 ? '+' : ''}
-                      {item.amount}
-                      <Coins className="w-4 h-4" />
+                      <div>
+                        <div className="font-medium">{item.description}</div>
+                        <div className="text-sm text-gray-500">{item.date}</div>
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 font-semibold ${
+                          item.amount > 0 ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      >
+                        {item.amount > 0 ? '+' : ''}
+                        {item.amount}
+                        <Coins className="w-4 h-4" />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

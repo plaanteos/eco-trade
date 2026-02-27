@@ -36,6 +36,7 @@ interface Product {
 
 export function ProfilePage() {
   const { user, refreshProfile } = useAuth();
+  const isSeller = Boolean(user?.roles?.includes('seller'));
   const [myProducts, setMyProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -47,7 +48,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     loadMyProducts();
-  }, []);
+  }, [isSeller]);
 
   useEffect(() => {
     const buildQr = async () => {
@@ -70,6 +71,10 @@ export function ProfilePage() {
   }, [user?.recyclingCode]);
 
   const loadMyProducts = async () => {
+    if (!isSeller) {
+      setMyProducts([]);
+      return;
+    }
     setIsLoading(true);
     try {
       const response = await api.getMyProducts();
@@ -235,11 +240,15 @@ export function ProfilePage() {
               ) : myProducts.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-gray-500 mb-4">
-                    No has publicado productos aún
+                    {isSeller
+                      ? 'No has publicado productos aún'
+                      : 'Aún no tienes ventas activadas'}
                   </p>
-                  <Button onClick={() => window.location.href = '/sell'}>
-                    Publicar Producto
-                  </Button>
+                  {isSeller && (
+                    <Button onClick={() => window.location.href = '/sell'}>
+                      Publicar Producto
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">

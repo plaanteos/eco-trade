@@ -22,7 +22,7 @@ import {
 import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Leaf, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 const CATEGORIES = [
   'Electrónicos',
@@ -143,6 +143,17 @@ export function OnboardingPage() {
         return;
       }
 
+      if (accountType === 'company') {
+        await api.activateCompanySeller({
+          companyProfile: {
+            name: companyName.trim(),
+            industry: companyIndustry.trim(),
+          },
+        });
+      } else if (goal === 'sell' || goal === 'both') {
+        await api.activateSellerRole();
+      }
+
       await api.completeOnboarding({
         accountType,
         location: {
@@ -180,9 +191,11 @@ export function OnboardingPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
-              <Leaf className="w-5 h-5 text-white" />
-            </div>
+            <img
+              src="/ecotrade-logo.png"
+              alt="EcoTrade"
+              className="h-10 w-auto"
+            />
             <div>
               <CardTitle>Bienvenido a EcoTrade</CardTitle>
               <CardDescription>

@@ -9,7 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Package, Coins, Leaf, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Package, Coins, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIES = [
@@ -33,8 +33,9 @@ const CONDITIONS = [
 
 export function SellPage() {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [success, setSuccess] = useState(false);
   const [ecoCoinsEarned, setEcoCoinsEarned] = useState(0);
   const [formData, setFormData] = useState({
@@ -49,6 +50,60 @@ export function SellPage() {
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  const isSeller = Boolean(user?.roles?.includes('seller'));
+
+  const handleActivateSeller = async () => {
+    setIsActivating(true);
+    try {
+      const res = await api.activateSellerRole();
+      if (res.success) {
+        await refreshProfile();
+        toast.success('Ventas activadas. Ya puedes publicar productos.');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'No se pudo activar el rol de vendedor');
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  if (!isSeller) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Vender Producto</h1>
+          <p className="text-gray-600">
+            Tu cuenta aún no está habilitada para publicar productos.
+          </p>
+        </div>
+
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Necesitas el rol <strong>seller</strong> para publicar productos.
+          </AlertDescription>
+        </Alert>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Activar ventas</CardTitle>
+            <CardDescription>
+              Esto habilita tu cuenta para publicar productos en el marketplace.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex gap-4">
+            <Button onClick={handleActivateSeller} disabled={isActivating} className="flex-1">
+              {isActivating ? 'Activando...' : 'Activar ventas'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => navigate('/')}>
+              Volver
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
