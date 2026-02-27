@@ -35,7 +35,9 @@ function calcRewards(acceptedMaterials, materials) {
 
   const items = (Array.isArray(materials) ? materials : []).map((m) => {
     const materialType = normalizeMaterialName(m.materialType);
-    const weight = Number(m.weight) || 0;
+    const weight = Number(
+      m.weight ?? m.estimatedWeight ?? m.actualWeight ?? m.estimatedWeightKg ?? 0
+    ) || 0;
     const rewardPerKg = rates.get(materialType) ?? 0;
     const ecoCoins = Math.max(0, weight) * Math.max(0, rewardPerKg);
 
@@ -202,15 +204,26 @@ exports.createRecyclingSubmission = async (req, res) => {
 
     const submissionCode = await createUniqueSubmissionCode(prisma);
 
+    // Normalizar: soportar payloads que envían estimatedWeight
+    const normalizedMaterials = (Array.isArray(materials) ? materials : []).map((m) => {
+      const w = Number(m.weight ?? m.estimatedWeight ?? m.actualWeight ?? 0) || 0;
+      return {
+        ...m,
+        materialType: normalizeMaterialName(m.materialType),
+        estimatedWeight: m.estimatedWeight !== undefined ? m.estimatedWeight : w,
+        weight: m.weight !== undefined ? m.weight : w,
+      };
+    });
+
     // Estimación simple con los pesos enviados
-    const estimated = calcRewards(point.acceptedMaterials, materials);
+    const estimated = calcRewards(point.acceptedMaterials, normalizedMaterials);
 
     const created = await prisma.recyclingSubmission.create({
       data: {
         submissionCode,
         userId: String(req.userId),
         recyclingPointId: String(point.id),
-        materials,
+        materials: normalizedMaterials,
         submissionDetails: { ...(submissionDetails || {}), submissionNotes: submissionNotes || '' },
         tracking: appendTracking({ currentStatus: 'submitted', history: [] }, 'submitted', req.userId),
         verificationStatus: 'pending',
@@ -277,12 +290,22 @@ exports.registerDeliveryByOperator = async (req, res) => {
 
     const submissionCode = await createUniqueSubmissionCode(prisma);
 
+    const normalizedMaterials = (Array.isArray(materials) ? materials : []).map((m) => {
+      const w = Number(m.weight ?? m.estimatedWeight ?? m.actualWeight ?? 0) || 0;
+      return {
+        ...m,
+        materialType: normalizeMaterialName(m.materialType),
+        estimatedWeight: m.estimatedWeight !== undefined ? m.estimatedWeight : w,
+        weight: m.weight !== undefined ? m.weight : w,
+      };
+    });
+
     const created = await prisma.recyclingSubmission.create({
       data: {
         userId: user.id,
         submissionCode,
         recyclingPointId: String(point.id),
-        materials,
+        materials: normalizedMaterials,
         submissionDetails: { ...(submissionDetails || {}), submissionNotes: submissionNotes || '' },
         tracking: appendTracking({ currentStatus: 'arrived', history: [] }, 'arrived', req.userId),
         verificationStatus: 'pending',

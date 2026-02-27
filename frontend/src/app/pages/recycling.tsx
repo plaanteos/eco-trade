@@ -163,9 +163,30 @@ export function RecyclingPage() {
   const [adminOperators, setAdminOperators] = useState<PointOperator[]>([]);
   const [newOperator, setNewOperator] = useState({ username: '', email: '', password: '' });
 
+  const adminPointIds = new Set<string>(user?.recyclingAccess?.adminPointIds || []);
+  const operatorPointIds = new Set<string>(user?.recyclingAccess?.operatorPointIds || []);
+  const getPointId = (p: any) => String(p?._id ?? p?.id ?? '');
+  const allowedOperatorPoints = recyclingPoints.filter((p) => {
+    const id = getPointId(p);
+    return Boolean(id) && (adminPointIds.has(id) || operatorPointIds.has(id));
+  });
+  const allowedAdminPoints = recyclingPoints.filter((p) => {
+    const id = getPointId(p);
+    return Boolean(id) && adminPointIds.has(id);
+  });
+
   useEffect(() => {
     loadRecyclingPoints();
   }, []);
+
+  useEffect(() => {
+    if (staffPointId && !allowedOperatorPoints.some((p) => getPointId(p) === staffPointId)) {
+      setStaffPointId('');
+    }
+    if (adminPointId && !allowedAdminPoints.some((p) => getPointId(p) === adminPointId)) {
+      setAdminPointId('');
+    }
+  }, [adminPointId, allowedAdminPoints, allowedOperatorPoints, staffPointId]);
 
   useEffect(() => {
     const allowed = new Set<string>(['map']);
@@ -577,6 +598,23 @@ export function RecyclingPage() {
         </p>
       </div>
 
+      {!isStaff && user?.recyclingCode && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Recycle className="w-5 h-5" />
+              Tu código de reciclaje
+            </CardTitle>
+            <CardDescription>
+              Muéstralo al operador para acreditar tus EcoCoins
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="font-mono text-lg">{user.recyclingCode}</div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="map">Puntos de Reciclaje</TabsTrigger>
@@ -611,7 +649,7 @@ export function RecyclingPage() {
               ) : (
                 <div className="space-y-4">
                   {recyclingPoints.map((point) => (
-                    <Card key={point._id}>
+                    <Card key={getPointId(point)}>
                       <CardHeader>
                         <div className="flex items-start justify-between">
                           <div>
@@ -644,15 +682,17 @@ export function RecyclingPage() {
                               ))}
                             </div>
                           </div>
-                          <Button
-                            onClick={() => {
-                              setSelectedPoint(point._id);
-                              setActiveTab('submit');
-                            }}
-                            className="w-full"
-                          >
-                            Registrar entrega aquí
-                          </Button>
+                          {!isStaff && (
+                            <Button
+                              onClick={() => {
+                                setSelectedPoint(getPointId(point));
+                                setActiveTab('submit');
+                              }}
+                              className="w-full"
+                            >
+                              Registrar entrega aquí
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -689,7 +729,7 @@ export function RecyclingPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {recyclingPoints.map((point) => (
-                        <SelectItem key={point._id} value={point._id}>
+                        <SelectItem key={getPointId(point)} value={getPointId(point)}>
                           {point.name} - {point.city}
                         </SelectItem>
                       ))}
@@ -980,8 +1020,8 @@ export function RecyclingPage() {
                       <SelectValue placeholder="Selecciona un punto" />
                     </SelectTrigger>
                     <SelectContent>
-                      {recyclingPoints.map((point) => (
-                        <SelectItem key={point._id} value={point._id}>
+                      {allowedOperatorPoints.map((point) => (
+                        <SelectItem key={getPointId(point)} value={getPointId(point)}>
                           {point.name} - {point.city}
                         </SelectItem>
                       ))}
@@ -1117,8 +1157,8 @@ export function RecyclingPage() {
                     <SelectValue placeholder="Selecciona un punto" />
                   </SelectTrigger>
                   <SelectContent>
-                    {recyclingPoints.map((point) => (
-                      <SelectItem key={point._id} value={point._id}>
+                    {allowedAdminPoints.map((point) => (
+                      <SelectItem key={getPointId(point)} value={getPointId(point)}>
                         {point.name} - {point.city}
                       </SelectItem>
                     ))}

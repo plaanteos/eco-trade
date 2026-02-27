@@ -299,6 +299,13 @@ class ValidationSchemas {
     }).optional(),
     preferences: Joi.object({
       categories: Joi.array().items(Joi.string().max(50)).max(10).default([]),
+      goal: Joi.string().valid('buy', 'sell', 'both').optional(),
+      maxDeliveryDistance: Joi.number().min(1).max(200).optional(),
+      preferredDeliveryMethod: Joi.string().valid('pickup', 'delivery', 'shipping', 'meetup').optional(),
+      preferredPaymentMethod: Joi.string().valid('Efectivo', 'Transferencia', 'MercadoPago', 'EcoCoins', 'Mixto').optional(),
+      recyclingInterest: Joi.boolean().optional(),
+      companyName: Joi.string().max(120).allow('').optional(),
+      companyIndustry: Joi.string().max(80).allow('').optional(),
       notifications: Joi.object({
         email: Joi.boolean().default(true),
         push: Joi.boolean().default(false),
