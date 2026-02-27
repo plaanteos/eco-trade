@@ -70,6 +70,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Alias bajo /api para entornos donde todo se prueba bajo ese prefijo
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    env: nodeEnv,
+    demoMode: isDemoMode,
+    db: isConnected() ? 'connected' : 'disconnected',
+    uptime: process.uptime()
+  });
+});
+
 // Rutas
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
