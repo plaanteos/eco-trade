@@ -82,7 +82,7 @@ export function RegisterPage() {
           <img
             src="/ecotrade-logo.png"
             alt="EcoTrade"
-            className="h-16 w-auto mx-auto mb-4"
+            className="h-20 sm:h-24 w-auto mx-auto mb-4"
           />
           <p className="text-gray-600 mt-2">Únete a la economía circular</p>
         </div>
