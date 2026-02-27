@@ -7,6 +7,7 @@ interface User {
   username: string;
   email: string;
   accountType?: 'individual' | 'company';
+  onboardingCompleted?: boolean;
   recyclingCode?: string;
   roles?: string[];
   recyclingAccess?: {
@@ -24,6 +25,8 @@ interface User {
   totalTransactions?: number;
   productsSold?: number;
   productsBought?: number;
+  location?: any;
+  preferences?: any;
 }
 
 interface AuthContextType {
@@ -46,6 +49,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function normalizeUser(rawUser: any): User {
   const resolvedId = rawUser?._id || rawUser?.id;
+  const preferences = rawUser?.preferences;
   return {
     ...rawUser,
     _id: resolvedId,
@@ -53,6 +57,9 @@ function normalizeUser(rawUser: any): User {
     ecoCoins: rawUser?.ecoCoins ?? 0,
     sustainabilityScore: rawUser?.sustainabilityScore ?? 0,
     country: rawUser?.country ?? '',
+    preferences,
+    location: rawUser?.location,
+    onboardingCompleted: Boolean(preferences?.onboardingCompleted),
   };
 }
 

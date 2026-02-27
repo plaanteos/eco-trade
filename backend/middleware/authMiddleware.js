@@ -45,6 +45,8 @@ const authenticate = async (req, res, next) => {
         roles: true,
         isActive: true,
         isVerified: true,
+        location: true,
+        preferences: true,
         createdAt: true,
       },
     });
@@ -162,6 +164,8 @@ const optionalAuth = async (req, res, next) => {
           roles: true,
           isActive: true,
           isVerified: true,
+          location: true,
+          preferences: true,
           createdAt: true,
         },
       });

@@ -40,6 +40,7 @@ const store = {
       ecoCoins: 50,
       sustainabilityScore: 50,
       isActive: true,
+      preferences: { onboardingCompleted: false },
       createdAt: new Date().toISOString(),
     };
 

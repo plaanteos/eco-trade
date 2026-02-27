@@ -9,6 +9,7 @@ import { EcoCoinsPage } from './pages/ecocoins';
 import { RecyclingPage } from './pages/recycling';
 import { ProfilePage } from './pages/profile';
 import { AuthCallbackPage } from './pages/auth-callback';
+import { OnboardingPage } from './pages/onboarding';
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
       {
         index: true,
         Component: HomePage,
+      },
+      {
+        path: 'onboarding',
+        Component: OnboardingPage,
       },
       {
         path: 'search',

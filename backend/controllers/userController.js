@@ -152,6 +152,7 @@ exports.register = async (req, res) => {
         sustainabilityScore,
         roles: ['user'],
         isActive: true,
+        preferences: { onboardingCompleted: false },
       },
       select: {
         id: true,
@@ -164,6 +165,8 @@ exports.register = async (req, res) => {
         ecoCoins: true,
         sustainabilityScore: true,
         roles: true,
+        location: true,
+        preferences: true,
       },
     });
 
@@ -185,6 +188,8 @@ exports.register = async (req, res) => {
       profileImage: user.profileImage,
       roles: user.roles,
       recyclingAccess,
+      location: user.location,
+      preferences: user.preferences,
     };
 
     return res.status(201).json({
@@ -252,6 +257,8 @@ exports.login = async (req, res) => {
         sustainabilityScore: true,
         roles: true,
         isActive: true,
+        location: true,
+        preferences: true,
       },
     });
 
@@ -295,6 +302,8 @@ exports.login = async (req, res) => {
       profileImage: user.profileImage,
       roles: user.roles,
       recyclingAccess,
+      location: user.location,
+      preferences: user.preferences,
     };
 
     return res.status(200).json({
@@ -365,6 +374,8 @@ exports.loginWithSupabase = async (req, res) => {
         sustainabilityScore: true,
         roles: true,
         isActive: true,
+        location: true,
+        preferences: true,
       },
     });
 
@@ -401,6 +412,7 @@ exports.loginWithSupabase = async (req, res) => {
           roles: ['user'],
           isActive: true,
           profileImage: avatarUrl ? String(avatarUrl) : undefined,
+          preferences: { onboardingCompleted: false },
         },
         select: {
           id: true,
@@ -413,6 +425,8 @@ exports.loginWithSupabase = async (req, res) => {
           ecoCoins: true,
           sustainabilityScore: true,
           roles: true,
+          location: true,
+          preferences: true,
         },
       });
     } else {
@@ -445,6 +459,8 @@ exports.loginWithSupabase = async (req, res) => {
           profileImage: user.profileImage,
           roles: user.roles,
           recyclingAccess,
+          location: user.location,
+          preferences: user.preferences,
         },
       },
     });
@@ -477,6 +493,8 @@ exports.getProfile = async (req, res) => {
         sustainabilityScore: true,
         totalTransactions: true,
         roles: true,
+        location: true,
+        preferences: true,
         createdAt: true,
       },
     });
@@ -508,6 +526,8 @@ exports.getProfile = async (req, res) => {
           totalTransactions: user.totalTransactions,
           roles: user.roles,
           recyclingAccess,
+          location: user.location,
+          preferences: user.preferences,
           createdAt: user.createdAt
         }
       }
@@ -568,6 +588,8 @@ exports.updateProfile = async (req, res) => {
         totalTransactions: true,
         roles: true,
         isActive: true,
+        location: true,
+        preferences: true,
         createdAt: true,
       },
     });
@@ -593,6 +615,97 @@ exports.updateProfile = async (req, res) => {
       message: 'Error al actualizar perfil',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+/**
+ * Completar onboarding (tipo de usuario + preferencias básicas)
+ */
+exports.completeOnboarding = async (req, res) => {
+  try {
+    const { error, value } = userValidationSchemas.onboarding.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Datos inválidos',
+        errors: error.details.map((detail) => detail.message),
+      });
+    }
+
+    const prisma = getPrisma();
+    const userId = String(req.userId);
+
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, preferences: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const incomingPreferences = value.preferences || {};
+    const nextPreferences = {
+      ...(existing.preferences || {}),
+      ...incomingPreferences,
+      onboardingCompleted: true,
+    };
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        accountType: value.accountType,
+        location: value.location,
+        preferences: nextPreferences,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        accountType: true,
+        country: true,
+        recyclingCode: true,
+        profileImage: true,
+        ecoCoins: true,
+        sustainabilityScore: true,
+        totalTransactions: true,
+        roles: true,
+        location: true,
+        preferences: true,
+        createdAt: true,
+      },
+    });
+
+    const recyclingAccess = await getRecyclingAccess(prisma, updated.id);
+
+    return res.json({
+      success: true,
+      message: 'Onboarding completado',
+      data: {
+        user: {
+          id: updated.id,
+          _id: updated.id,
+          username: updated.username,
+          email: updated.email,
+          accountType: updated.accountType,
+          country: updated.country,
+          recyclingCode: updated.recyclingCode,
+          currency: getCurrencyForCountry(updated.country),
+          ecoCoins: updated.ecoCoins,
+          sustainabilityScore: updated.sustainabilityScore,
+          profileImage: updated.profileImage,
+          totalTransactions: updated.totalTransactions,
+          roles: updated.roles,
+          recyclingAccess,
+          location: updated.location,
+          preferences: updated.preferences,
+          createdAt: updated.createdAt,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error en completeOnboarding:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 

@@ -278,7 +278,7 @@ class ValidationSchemas {
     }).optional(),
     preferences: Joi.object({
       categories: Joi.array()
-        .items(Joi.string().valid('Electrónica', 'Muebles', 'Ropa', 'Herramientas', 'Libros', 'Deportes', 'Hogar', 'Vehículos', 'Otros')),
+        .items(Joi.string().max(50)),
       maxDeliveryDistance: Joi.number().min(1).max(200),
       notifications: Joi.object({
         email: Joi.boolean(),
@@ -286,6 +286,25 @@ class ValidationSchemas {
         sms: Joi.boolean()
       })
     }).optional()
+  });
+
+  // Esquema para completar onboarding
+  static onboardingUpdate = Joi.object({
+    accountType: Joi.string().valid('individual', 'company').required(),
+    location: Joi.object({
+      city: Joi.string().max(100).allow(''),
+      province: Joi.string().max(100).allow(''),
+      address: Joi.string().max(200).allow(''),
+      coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+    }).optional(),
+    preferences: Joi.object({
+      categories: Joi.array().items(Joi.string().max(50)).max(10).default([]),
+      notifications: Joi.object({
+        email: Joi.boolean().default(true),
+        push: Joi.boolean().default(false),
+        sms: Joi.boolean().default(false),
+      }).optional(),
+    }).optional(),
   });
 
   // Middleware de validación
@@ -342,4 +361,20 @@ class ValidationSchemas {
   }
 }
 
-module.exports = ValidationSchemas;
+module.exports = {
+  ValidationSchemas,
+  userValidationSchemas: {
+    register: ValidationSchemas.userRegister,
+    login: ValidationSchemas.userLogin,
+    update: ValidationSchemas.profileUpdate,
+    onboarding: ValidationSchemas.onboardingUpdate,
+  },
+  productValidationSchemas: {
+    create: ValidationSchemas.productCreate,
+    update: ValidationSchemas.productUpdate,
+    search: ValidationSchemas.productSearch,
+  },
+  transactionValidationSchemas: {
+    create: ValidationSchemas.transactionCreate,
+  },
+};

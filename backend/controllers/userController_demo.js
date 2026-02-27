@@ -62,7 +62,9 @@ exports.register = async (req, res) => {
           recyclingCode: demoUser.recyclingCode,
           currency: userCurrency,
           ecoCoins: demoUser.ecoCoins,
-          sustainabilityScore: demoUser.sustainabilityScore
+          sustainabilityScore: demoUser.sustainabilityScore,
+          location: demoUser.location,
+          preferences: demoUser.preferences
         }
       }
     });
@@ -120,7 +122,9 @@ exports.login = async (req, res) => {
           recyclingCode: demoUser.recyclingCode,
           currency: { currency: 'MXN', symbol: '$', name: 'México' },
           ecoCoins: demoUser.ecoCoins,
-          sustainabilityScore: demoUser.sustainabilityScore
+          sustainabilityScore: demoUser.sustainabilityScore,
+          location: demoUser.location,
+          preferences: demoUser.preferences
         }
       }
     });
@@ -162,6 +166,8 @@ exports.getProfile = async (req, res) => {
           currency: { currency: 'MXN', symbol: '$', name: 'México' },
           ecoCoins: demoUser.ecoCoins,
           sustainabilityScore: demoUser.sustainabilityScore,
+          location: demoUser.location,
+          preferences: demoUser.preferences,
           transactionsCount: 5,
           createdAt: new Date()
         }
@@ -213,6 +219,50 @@ exports.updateProfile = async (req, res) => {
       success: false,
       message: 'Error interno del servidor'
     });
+  }
+};
+
+/**
+ * Completar onboarding (modo demo)
+ */
+exports.completeOnboarding = async (req, res) => {
+  try {
+    const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });
+    const { accountType, location, preferences } = req.body || {};
+
+    const updated = store.setUser({
+      ...demoUser,
+      accountType: accountType || demoUser.accountType,
+      location: location || demoUser.location,
+      preferences: {
+        ...(demoUser.preferences || {}),
+        ...(preferences || {}),
+        onboardingCompleted: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Onboarding completado (modo demo)',
+      data: {
+        user: {
+          id: updated.id,
+          _id: updated.id,
+          username: updated.username,
+          email: updated.email,
+          country: updated.country,
+          accountType: updated.accountType,
+          recyclingCode: updated.recyclingCode,
+          currency: { currency: 'MXN', symbol: '$', name: 'México' },
+          ecoCoins: updated.ecoCoins,
+          sustainabilityScore: updated.sustainabilityScore,
+          location: updated.location,
+          preferences: updated.preferences,
+        },
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 

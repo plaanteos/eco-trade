@@ -37,6 +37,16 @@ export function MainLayout() {
 
   useEffect(() => {
     if (isLoading || !user) return;
+    if (isStaff) return;
+
+    const onboardingCompleted = Boolean((user as any)?.onboardingCompleted || user?.preferences?.onboardingCompleted);
+    if (!onboardingCompleted && location.pathname !== '/onboarding') {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [isLoading, user, isStaff, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
     if (!isStaff) return;
 
     const allowed = new Set(['/recycling', '/profile']);

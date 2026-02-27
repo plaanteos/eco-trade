@@ -18,6 +18,7 @@ router.post('/oauth/supabase', userController.loginWithSupabase);
 // Rutas protegidas
 router.get('/profile', authenticate, userController.getProfile);
 router.put('/profile', authenticate, userController.updateProfile);
+router.put('/onboarding', authenticate, userController.completeOnboarding);
 router.get('/stats', authenticate, userController.getStats);
 
 // Rutas de administrador

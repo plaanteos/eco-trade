@@ -96,6 +96,17 @@ class ApiClient {
     });
   }
 
+  async completeOnboarding(payload: {
+    accountType: 'individual' | 'company';
+    location?: any;
+    preferences?: any;
+  }) {
+    return this.request<ApiResponse>('/users/onboarding', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getStats() {
     return this.request<ApiResponse>('/users/stats');
   }
