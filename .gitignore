@@ -8,6 +8,9 @@ build/
 frontend/dist/
 coverage/
 
+# Vercel
+.vercel/
+
 # Env / secretos
 .env
 .env.*

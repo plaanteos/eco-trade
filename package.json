@@ -4,6 +4,7 @@
   "description": "Backend para plataforma de economía circular EcoTrade",
   "main": "server-main.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "start": "node server-main.js",
     "dev": "nodemon server-main.js",
     "frontend:install": "npm --prefix frontend install",
