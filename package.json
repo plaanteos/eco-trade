@@ -1,0 +1,46 @@
+{
+  "name": "ecotrade-backend",
+  "version": "1.0.0",
+  "description": "Backend para plataforma de economía circular EcoTrade",
+  "main": "server-main.js",
+  "scripts": {
+    "start": "node server-main.js",
+    "dev": "nodemon server-main.js",
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:start": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "test": "jest",
+    "lint": "eslint .",
+    "init-db": "node backend/scripts/initDatabase.js",
+    "reset-db": "node backend/scripts/initDatabase.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.1",
+    "@supabase/supabase-js": "^2.49.1",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^13.7.0",
+    "helmet": "^4.6.0",
+    "joi": "^17.7.0",
+    "jsonwebtoken": "^9.0.0",
+    "mongodb": "^7.0.0",
+    "mongoose": "^6.1.2",
+    "multer": "^1.4.5-lts.1",
+    "swagger-jsdoc": "^6.2.5",
+    "swagger-ui-express": "^4.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.4.1",
+    "jest": "^27.4.5",
+    "nodemon": "^3.1.0",
+    "prisma": "^6.16.1",
+    "supertest": "^6.2.2"
+  }
+}

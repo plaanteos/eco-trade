@@ -1,0 +1,422 @@
+EcoTrade — Descripción del proyecto (según el código del workspace)
+Fecha de generación: 24/02/2026
+
+======================================================================
+1) ¿QUÉ ES ECO TRADE?
+======================================================================
+EcoTrade es una plataforma de economía circular con dos piezas principales:
+- Backend: API REST en Node.js + Express, con MongoDB (Mongoose) como base de datos.
+- Frontend: aplicación web en React (SPA simple por “pantallas” sin router externo).
+
+Objetivo funcional:
+- Marketplace sostenible para publicar y encontrar productos de segunda mano.
+- Sistema de recompensas llamado “ecoCoins”.
+- Módulo adicional de “Reciclaje”: puntos de reciclaje y entregas (submissions) que generan recompensas e impacto ambiental.
+
+Punto importante del estado actual:
+- El backend incluye “modo demo” en varios módulos: si no hay conexión a MongoDB (y NODE_ENV=development), algunas rutas responden con datos simulados.
+- Hay archivos duplicados en la raíz y en backend/. El servidor activo usa los archivos dentro de backend/ (ver sección 2).
+
+======================================================================
+2) APARTADO: BACKEND (API REST)
+======================================================================
+
+2.1) Entry point y middleware global
+- Archivo principal: server-main.js
+  - Conecta a MongoDB usando backend/config/database-config.js.
+  - Middlewares: cors, helmet, express.json, express.urlencoded.
+  - Monta rutas:
+    - /api/products        -> backend/routers/productRoutes.js
+    - /api/users           -> backend/routers/userRoutes.js
+    - /api/transactions    -> backend/routers/transactionRoutes.js
+    - /api/recycling       -> backend/routers/recyclingRoutes.js
+  - Error handler: backend/middleware/errorHandler.js (actualmente responde 500 genérico).
+  - Swagger: backend/swagger.js (documentación básica, no cubre todas las rutas reales).
+
+2.2) Conexión a base de datos
+- backend/config/database-config.js
+  - Usa MONGODB_URI del .env.
+  - Si falla y NODE_ENV=development: continúa sin DB (retorna null) y queda “modo demo”.
+  - Si falla en producción: process.exit(1).
+
+2.3) Autenticación y autorización
+- Rutas del servidor actual usan el middleware “demo”:
+  - backend/middleware/authMiddleware_demo.js
+    - authenticate: valida JWT (JWT_SECRET o 'default_secret'), y setea req.user con datos del token.
+    - authorize: en modo demo permite TODO.
+    - optionalAuth: intenta leer JWT si existe, pero no falla si es inválido.
+
+Nota:
+- Existe un middleware “real” backend/middleware/authMiddleware.js que sí consulta User en MongoDB,
+  pero NO es el que se importa en las rutas actuales (userRoutes/productRoutes/transactionRoutes/recyclingRoutes).
+
+---------------------------------------------------------------------
+2.4) API: Users (/api/users)
+---------------------------------------------------------------------
+Rutas definidas en backend/routers/userRoutes.js (usan userController_demo + authMiddleware_demo):
+
+- POST /api/users/register
+  Controlador: backend/controllers/userController_demo.js::register
+  Funcionalidad:
+  - Valida obligatorios: username, email, password, country.
+  - Genera token JWT (expira 1h).
+  - Devuelve usuario simulado (sin persistencia) con ecoCoins=50 (bienvenida) y sustainabilityScore=50.
+  - Incluye info de moneda/país según country (AR/MX/CO/ES/US/BR/CL/PE).
+
+- POST /api/users/login
+  Controlador: userController_demo.js::login
+  Funcionalidad:
+  - Valida email y password.
+  - Genera token JWT (expira 1h).
+  - Devuelve usuario simulado con ecoCoins=150, sustainabilityScore=75 y country=MX.
+
+- GET /api/users/profile  (protegida)
+  Controlador: userController_demo.js::getProfile
+  Funcionalidad:
+  - Devuelve perfil simulado (sin DB): ecoCoins, sustainabilityScore, transactionsCount.
+
+- PUT /api/users/profile  (protegida)
+  Controlador: userController_demo.js::updateProfile
+  Funcionalidad:
+  - Responde “Perfil actualizado (modo demo)” sin persistir cambios.
+
+- GET /api/users/stats  (protegida)
+  Controlador: userController_demo.js::getStats
+  Funcionalidad:
+  - Devuelve estadísticas simuladas: ecoCoins, transactionsCount, sustainabilityScore, monthlyGrowth.
+
+- GET /api/users/  (admin; protegida)
+  Controlador: userController_demo.js::getAllUsers
+  Funcionalidad:
+  - Devuelve array simulado de usuarios.
+  - authorize() en modo demo no restringe, pero la ruta está marcada como “admin” a nivel de intención.
+
+Nota:
+- Existe backend/controllers/userController.js con lógica más “real” (incluye Joi y consultas a MongoDB),
+  pero actualmente NO está conectado a las rutas de userRoutes.js.
+
+---------------------------------------------------------------------
+2.5) API: Products (/api/products)
+---------------------------------------------------------------------
+Rutas definidas en backend/routers/productRoutes.js (usan productController + authMiddleware_demo):
+
+- GET /api/products/search (pública)
+  Controlador: backend/controllers/productController.js::searchProducts
+  Funcionalidad:
+  - Permite filtros por querystring:
+    - search (texto, busca en name/description)
+    - category
+    - condition
+    - minPrice
+    - maxPrice
+  - Si MongoDB está disponible: hace Product.find(query).sort({createdAt:-1}).
+  - Si MongoDB NO está disponible: filtra un array en memoria (tempProducts) y ordena por createdAt.
+  - Respuesta: { success: true, data: { products, total } }
+
+- GET /api/products/:id (pública)
+  Controlador: productController.js::getProductById
+  Funcionalidad:
+  - Busca el producto por id en MongoDB.
+  - Si no existe: 404.
+  - Nota: en esta implementación NO tiene fallback demo (si no hay DB, puede fallar).
+
+- POST /api/products (protegida)
+  Controlador: productController.js::createProduct
+  Body esperado:
+  - title, description, price, category, condition (requeridos)
+  - location (opcional)
+  Funcionalidad:
+  - Mapea title -> name para el modelo.
+  - Si MongoDB está disponible: guarda en colección products.
+  - Si no hay DB: agrega a un array temporal (tempProducts).
+  - Calcula ecoCoinsEarned con una regla simple: floor(price/10).
+  - Respuesta: incluye product y ecoCoinsEarned.
+
+- PUT /api/products/:id (protegida)
+  Controlador: productController.js::updateProduct
+  Funcionalidad:
+  - Actualiza campos (title->name, description, price, category, condition, location->locationText).
+
+- DELETE /api/products/:id (protegida)
+  Controlador: productController.js::deleteProduct
+
+- GET /api/products/user/my-products (protegida)
+  Controlador: productController.js::getMyProducts
+  Funcionalidad:
+  - Busca productos por owner = req.user.id (o 'demo_user').
+  - Nota: usa MongoDB, no array demo.
+
+- POST /api/products/:id/interest (protegida)
+  Controlador: productController.js::showInterest
+  Funcionalidad:
+  - Solo confirma “Interés registrado” y devuelve el producto.
+  - No persiste un “interés” como entidad; es una acción placeholder.
+
+Observación:
+- El controlador tiene exports.getAllProducts, pero NO existe ruta GET /api/products en productRoutes.js.
+
+---------------------------------------------------------------------
+2.6) API: Transactions (/api/transactions)
+---------------------------------------------------------------------
+Rutas definidas en backend/routers/transactionRoutes.js (usan transactionController + authMiddleware_demo):
+
+- GET /api/transactions (protegida)
+  Controlador: backend/controllers/transactionController.js::getAllTransactions
+  Funcionalidad:
+  - Devuelve Transaction.find() (todas las transacciones).
+
+- POST /api/transactions (protegida)
+  Controlador: transactionController.js::createTransaction
+  Body requerido:
+  - product, buyer, seller, amount
+  Funcionalidad:
+  - Crea Transaction con el body.
+  - El modelo Transaction tiene pre-save que calcula ecoCoinsGenerated: base = floor(amount/10), 60% seller, 40% buyer.
+
+Nota:
+- El modelo Transaction incluye chat, timeline, ratings y métodos (complete, addMessage, updateStatus, addRating),
+  pero actualmente NO hay endpoints expuestos en transactionRoutes.js para esas capacidades.
+
+---------------------------------------------------------------------
+2.7) API: Recycling (/api/recycling)
+---------------------------------------------------------------------
+Rutas definidas en backend/routers/recyclingRoutes.js (usan recyclingPointController, recyclingSubmissionController + authMiddleware_demo):
+
+A) Puntos de reciclaje
+- GET /api/recycling/points
+  Controller: recyclingPointController.getAllRecyclingPoints
+  Filtros: city, state, status, materialType, lat, lng, radius
+  Funcionalidad:
+  - Si hay lat/lng: usa aggregate + $geoNear para proximidad.
+  - Si no: find() + populate(administrator).
+
+- GET /api/recycling/points/nearby
+  Controller: recyclingPointController.findNearbyRecyclingPoints
+  Requiere lat/lng; radius opcional.
+
+- GET /api/recycling/points/:id
+  Controller: recyclingPointController.getRecyclingPointById
+  Funcionalidad:
+  - Popula administrador y resetea contador diario si corresponde.
+
+- GET /api/recycling/points/:id/materials
+  Controller: recyclingPointController.getAcceptedMaterials
+  Funcionalidad:
+  - Lista materiales aceptados + aplica multiplicador de programas especiales activos.
+
+- GET /api/recycling/points/:id/stats
+  Controller: recyclingPointController.getRecyclingPointStats
+  Funcionalidad:
+  - Calcula stats overall + monthly/weekly agregando submissions aprobadas.
+
+- POST /api/recycling/points (protegida)
+  Controller: recyclingPointController.createRecyclingPoint
+
+- PUT /api/recycling/points/:id (protegida)
+  Controller: recyclingPointController.updateRecyclingPoint
+
+- DELETE /api/recycling/points/:id (protegida)
+  Controller: recyclingPointController.deleteRecyclingPoint
+
+B) Submissions (entregas de reciclaje)
+- POST /api/recycling/submissions (protegida)
+  Controller: recyclingSubmissionController.createRecyclingSubmission
+  Funcionalidad:
+  - Verifica que el punto exista y tenga capacidad diaria.
+  - Valida que los materiales estén aceptados por el punto.
+  - Calcula estimaciones de peso y ecoCoins (rewardPerKg por material).
+  - Crea submission con tracking y submissionCode.
+  - Calcula impacto ambiental inicial.
+
+- GET /api/recycling/submissions/my-submissions (protegida)
+  Controller: recyclingSubmissionController.getUserSubmissions
+  Funcionalidad:
+  - Lista submissions del usuario con paginación y filtro por status.
+
+- GET /api/recycling/submissions/stats (protegida)
+  Controller: recyclingSubmissionController.getUserRecyclingStats
+  Funcionalidad:
+  - Agregaciones de total reciclado, ecoCoins, CO2, energía, agua, árboles equivalentes.
+
+- PATCH /api/recycling/submissions/:submissionId/cancel (protegida)
+  Controller: recyclingSubmissionController.cancelSubmission
+
+- GET /api/recycling/submissions/code/:code (pública)
+  Controller: recyclingSubmissionController.getSubmissionByCode
+  Funcionalidad:
+  - Búsqueda por submissionCode, con populate de user/point/verifier.
+
+- GET /api/recycling/submissions/pending (protegida)
+  Controller: recyclingSubmissionController.getPendingSubmissions
+
+- PATCH /api/recycling/submissions/:submissionId/status (protegida)
+  Controller: recyclingSubmissionController.updateSubmissionStatus
+
+- PATCH /api/recycling/submissions/:submissionId/verify (protegida)
+  Controller: recyclingSubmissionController.verifySubmission
+  Funcionalidad:
+  - Permite aprobar/rechazar, cargar pesos reales, evaluar calidad.
+  - Si aprueba: calcula recompensa final, recalcula impacto, actualiza stats del punto.
+  - Marca rewardDistributed=true pero comenta que el “balance del usuario” no se actualiza todavía.
+
+======================================================================
+3) APARTADO: MODELOS (MONGOOSE)
+======================================================================
+
+3.1) User (backend/models/User.js)
+Campos principales:
+- username, email, password (bcrypt pre-save), profileImage (dicebear), roles.
+- ecoCoins, totalTransactions, sustainabilityScore (0-100).
+- rating (average/count), productsSold/productsBought.
+- location geoespacial (Point) con índice 2dsphere.
+Métodos:
+- comparePassword, updateSustainabilityScore, addEcoCoins, updateRating.
+
+3.2) Product (backend/models/Product.js)
+Campos principales:
+- name, description, price, originalPrice.
+- category (enum: 'Electrónicos', 'Ropa y Accesorios', 'Hogar y Jardín', etc.).
+- condition (enum: 'Nuevo', 'Como nuevo', 'Usado - Excelente', ...).
+- seller (User ObjectId), owner (String para compat demo), status.
+- ecologicalImpact (Number), ecoCoinsGenerated, estimatedCO2Saved.
+- location (Point) y locationText.
+Índices: texto (name/description/tags), geoespacial y por campos.
+Métodos:
+- calculateEcologicalImpact (calcula ecologicalImpact, ecoCoinsGenerated y estimatedCO2Saved), incrementViews, toggleFavorite.
+
+3.3) Transaction (backend/models/Transaction.js)
+Campos principales:
+- product, buyer, seller, amount, status.
+- paymentMethod y paymentDetails.
+- delivery, timeline, comunicación (mensajes), ratings.
+Pre-save:
+- Calcula ecoCoinsGenerated (base=floor(amount/10), 60/40).
+Métodos:
+- addMessage, updateStatus, addRating, complete (distribuye ecoCoins y marca producto vendido).
+
+3.4) RecyclingPoint y RecyclingSubmission
+- RecyclingPoint define el punto, materiales aceptados con rewardPerKg, capacidad diaria, stats.
+- RecyclingSubmission define una entrega con materiales, verificación, recompensas y tracking + impacto ambiental.
+
+======================================================================
+4) APARTADO: UTILIDADES (backend/utils)
+======================================================================
+- backend/utils/ecoCoinCalculator.js
+  - Calculadora avanzada para ecoCoins (transacciones con multiplicadores por categoría/condición/bonos).
+  - También calcula pago con ecoCoins y proyecciones.
+  - Importante: actualmente la API “Products” usa una regla simple (floor(price/10)) en el controller, y
+    Transactions usa el pre-save del modelo (también floor(amount/10)). Esta calculadora avanzada no está
+    integrada en las rutas actuales.
+
+- backend/utils/validationSchemas.js
+  - Esquemas Joi (documentación/validación). Algunos controladores “reales” lo usan.
+
+======================================================================
+5) APARTADO: FRONTEND (React)
+======================================================================
+
+5.1) Navegación/estructura
+- frontend/src/App.js
+  - Maneja autenticación con token guardado en localStorage.
+  - Si no hay token: muestra Inicio (Home), Login y Register.
+  - Si hay token: muestra menú con pantallas: Inicio, Buscar, Vender, EcoCoins, Reciclaje, Perfil.
+  - Carga perfil llamando GET http://localhost:5000/api/users/profile (Bearer token).
+
+5.2) Pantallas (screens)
+- HomeScreen
+  - Contenido estático (marketing/hero/CTA). No llama a API.
+
+- LoginScreen
+  - POST http://localhost:5000/api/users/login
+  - Si success: guarda token y user.
+
+- RegisterScreen
+  - POST http://localhost:5000/api/users/register
+  - Nota de consistencia: el backend demo exige “country”, pero este frontend no la envía en el body
+    (aunque el form sí la muestra). Esto puede producir 400 “Faltan datos obligatorios”.
+
+- ProductSearchScreen
+  - GET http://localhost:5000/api/products/search (con filtros)
+  - Nota de consistencia: muestra product.title, pero el backend devuelve name. Puede verse vacío.
+
+- CreateProductScreen
+  - POST http://localhost:5000/api/products
+  - Envía title/description/price/category/condition/location.
+  - Mapea correctamente con productController (que convierte title->name).
+
+- EcoCoinsScreen
+  - UI de balance y recompensas con datos mayormente demo/estáticos.
+  - No consume endpoints reales para historial/canje.
+
+- RecyclingScreen
+  - UI completa con tabs (map, submit, history, stats) pero con datos demo locales.
+  - No está conectada a endpoints reales de /api/recycling.
+
+- ProfileScreen
+  - UI de perfil con tabs (productos/transacciones/settings).
+  - En el App actual no se le pasan productos ni transacciones reales; queda como UI.
+
+- TransactionScreen
+  - Existe pero NO está conectado al menú del App.
+  - Llama a /api/transactions relativo (no usa http://localhost:5000) y además el backend exige auth.
+
+5.3) Componentes
+- components/ProductList.js
+  - Lista simple de productos (no usado en App principal).
+
+======================================================================
+6) APARTADO: CONFIGURACIÓN Y ENTORNO
+======================================================================
+- env-example.txt
+  Variables relevantes:
+  - MONGODB_URI, PORT, JWT_SECRET, NODE_ENV, FIREBASE_SERVICE_ACCOUNT.
+
+- CONFIGURACION_PRODUCCION.md
+  - Guía para MongoDB Atlas, variables de entorno y script init-db.
+
+======================================================================
+7) APARTADO: SCRIPTS Y COMANDOS
+======================================================================
+Scripts npm (package.json en raíz):
+- npm run dev     -> nodemon server-main.js
+- npm start       -> node server-main.js
+- npm run init-db -> node backend/scripts/initDatabase.js
+- npm test        -> jest
+
+Script init DB:
+- backend/scripts/initDatabase.js
+  - Crea usuario admin@ecotrade.com (password hash de admin123).
+  - Inserta 10 productos de ejemplo si la colección está vacía.
+  - Crea índices.
+
+======================================================================
+8) APARTADO: TESTS (Jest + Supertest)
+======================================================================
+- backend/tests/*.test.js
+  Estado actual observado:
+  - Los tests esperan GET /api/users, /api/products, /api/transactions devuelvan arrays.
+  - En el servidor actual:
+    - /api/products NO tiene GET / (solo /search y /:id).
+    - /api/users GET / existe pero es “admin” y además responde con {success, data} en modo demo.
+    - /api/transactions GET / existe pero es protegida (requiere token) y devuelve array de transacciones.
+  Resultado: es probable que estos tests no reflejen el routing actual y fallen sin ajustes.
+
+======================================================================
+9) APARTADO: SWAGGER
+======================================================================
+- backend/swagger.js
+  - Swagger básico: define solo /api/products, /api/users y /api/transactions con GET/POST genéricos.
+  - No documenta rutas reales como /api/products/search o /api/recycling/*.
+
+======================================================================
+10) NOTAS DE CONSISTENCIA / ESTADO DEL PROYECTO
+======================================================================
+Estas observaciones son parte del “estado exacto” del workspace:
+- Se mezclan implementaciones demo y “reales” (hay userController.js y authMiddleware.js más completos, pero rutas usan _demo).
+- Algunos endpoints no están conectados (ej.: getAllProducts no tiene ruta GET /api/products).
+- Frontend y backend tienen pequeños desajustes de nombres de campos (title vs name, country en register).
+- Módulo reciclaje del backend está implementado con bastante detalle; el frontend muestra UI demo pero aún no consume la API.
+
+======================================================================
+FIN DEL DOCUMENTO
+======================================================================

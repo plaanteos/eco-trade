@@ -1,0 +1,25 @@
+.qodo
+
+# Node / builds
+node_modules/
+frontend/node_modules/
+dist/
+build/
+frontend/dist/
+coverage/
+
+# Env / secretos
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

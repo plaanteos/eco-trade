@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  individual
+  company
+}
+
+enum ProductStatus {
+  available
+  reserved
+  sold
+  paused
+}
+
+enum TransactionStatus {
+  Pendiente
+  Confirmada
+  En_proceso
+  Completada
+  Cancelada
+  Disputada
+}
+
+enum RecyclingPointStatus {
+  active
+  inactive
+  suspended
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  partially_approved
+  rejected
+}
+
+model User {
+  id                 String      @id @default(cuid())
+  username           String      @unique
+  email              String      @unique
+  passwordHash       String
+  accountType        AccountType @default(individual)
+  country            String?
+  recyclingCode      String      @unique
+  profileImage       String?
+
+  ecoCoins           Int         @default(0)
+  totalTransactions  Int         @default(0)
+  sustainabilityScore Int        @default(0)
+
+  roles              String[]
+  isActive           Boolean     @default(true)
+  isVerified         Boolean     @default(false)
+
+  location           Json?
+  preferences        Json?
+  rating             Json?
+  verificationDocuments Json?
+
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  products           Product[]   @relation("SellerProducts")
+  purchases          Transaction[] @relation("BuyerTransactions")
+  sales              Transaction[] @relation("SellerTransactions")
+
+  administeredPoints RecyclingPoint[] @relation("PointAdmin")
+  pointMemberships   RecyclingPointOperator[]
+  verifiedSubmissions RecyclingSubmission[] @relation("VerifiedBy")
+  recyclingSubmissions RecyclingSubmission[] @relation("UserSubmissions")
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  name            String
+  description     String
+  price           Float
+  category        String
+  condition       String
+  status          ProductStatus @default(available)
+  locationText    String?
+
+  images          String[]
+  tags            String[]
+
+  ecologicalImpact Float?       @default(0)
+  ecoCoinsGenerated Int         @default(0)
+  estimatedCO2Saved Float?      @default(0)
+
+  location        Json?
+  specifications  Json?
+  deliveryOptions Json?
+  promotions      Json?
+
+  sellerId        String?
+  seller          User?         @relation("SellerProducts", fields: [sellerId], references: [id])
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  transactions    Transaction[]
+
+  @@index([status])
+  @@index([category])
+  @@index([price])
+}
+
+model Transaction {
+  id               String            @id @default(cuid())
+
+  productId        String
+  product          Product           @relation(fields: [productId], references: [id])
+
+  buyerId          String
+  buyer            User              @relation("BuyerTransactions", fields: [buyerId], references: [id])
+
+  sellerId         String
+  seller           User              @relation("SellerTransactions", fields: [sellerId], references: [id])
+
+  amount           Float
+
+  ecoCoinsBuyer    Int               @default(0)
+  ecoCoinsSeller   Int               @default(0)
+  ecoCoinsTotal    Int               @default(0)
+
+  co2Saved         Float             @default(0)
+  status           TransactionStatus @default(Pendiente)
+  paymentMethod    String
+
+  paymentDetails   Json?
+  delivery         Json?
+  timeline         Json?
+  communication    Json?
+  ratings          Json?
+  metadata         Json?
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model RecyclingPoint {
+  id              String              @id @default(cuid())
+  name            String
+  description     String?
+  address         String
+  city            String
+  state           String?
+  country         String?
+
+  status          RecyclingPointStatus @default(active)
+
+  coordinates     Json?
+  contactInfo     Json?
+  operatingHours  Json?
+  acceptedMaterials Json
+  capacity        Json?
+  features        Json?
+  certifications  Json?
+  stats           Json?
+
+  administratorId String
+  administrator   User                @relation("PointAdmin", fields: [administratorId], references: [id])
+
+  operators       RecyclingPointOperator[]
+  submissions     RecyclingSubmission[]
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([city])
+  @@index([status])
+}
+
+model RecyclingPointOperator {
+  id        String         @id @default(cuid())
+  pointId   String
+  userId    String
+
+  point     RecyclingPoint @relation(fields: [pointId], references: [id])
+  user      User           @relation(fields: [userId], references: [id])
+
+  createdAt DateTime       @default(now())
+
+  @@unique([pointId, userId])
+  @@index([userId])
+}
+
+model RecyclingSubmission {
+  id                 String            @id @default(cuid())
+  submissionCode     String            @unique
+
+  userId             String
+  user               User              @relation("UserSubmissions", fields: [userId], references: [id])
+
+  recyclingPointId   String
+  recyclingPoint     RecyclingPoint    @relation(fields: [recyclingPointId], references: [id])
+
+  materials          Json
+  submissionDetails  Json?
+
+  verificationStatus VerificationStatus @default(pending)
+  verifiedById       String?
+  verifiedBy         User?              @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  verificationDate   DateTime?
+  verificationNotes  String?
+
+  rewards            Json?
+  tracking           Json?
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([recyclingPointId, verificationStatus])
+  @@index([userId])
+  @@index([createdAt])
+}
