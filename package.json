@@ -5,6 +5,7 @@
   "main": "server-main.js",
   "scripts": {
     "postinstall": "prisma generate",
+    "vercel-build": "prisma db push && npm --prefix frontend run build",
     "start": "node server-main.js",
     "dev": "nodemon server-main.js",
     "frontend:install": "npm --prefix frontend install",

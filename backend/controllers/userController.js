@@ -205,6 +205,15 @@ exports.register = async (req, res) => {
         message: 'Configuración inválida del servidor: JWT_SECRET faltante'
       });
     }
+
+    // Errores típicos cuando la DB aún no tiene las tablas (Prisma)
+    const msg = String(error?.message || '');
+    if (error?.code === 'P2021' || msg.toLowerCase().includes('does not exist') || msg.toLowerCase().includes('relation')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Base de datos no inicializada o esquema incompleto. Ejecuta Prisma (db push/migrate) en la DB de Supabase.'
+      });
+    }
     return res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
