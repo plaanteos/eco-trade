@@ -194,7 +194,7 @@ export function OnboardingPage() {
             <img
               src="/ecotrade-logo.png"
               alt="EcoTrade"
-              className="h-12 w-auto"
+              className="h-32 w-auto"
             />
             <div>
               <CardTitle>Bienvenido a EcoTrade</CardTitle>

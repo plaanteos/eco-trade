@@ -57,7 +57,7 @@ export function LoginPage() {
           <img
             src="/ecotrade-logo.png"
             alt="EcoTrade"
-            className="h-20 sm:h-24 w-auto mx-auto mb-4"
+            className="h-48 sm:h-56 w-auto mx-auto mb-4"
           />
           <p className="text-gray-600 mt-2">Economía circular sostenible</p>
         </div>
