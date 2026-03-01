@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
-const { normalizeRoles } = require('../utils/rbac');
+const { hasPermission, normalizeRoles } = require('../utils/rbac');
 
 async function addUserRole(prisma, userId, role) {
   if (!userId || !role) return;
@@ -173,14 +173,7 @@ exports.createRecyclingPoint = async (req, res) => {
   try {
     if (!ensureDb(res)) return;
 
-    const userRoles = normalizeRoles(req.user);
-    const isAdmin = userRoles.includes('admin');
-    if (!isAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Solo un administrador puede crear puntos de reciclaje'
-      });
-    }
+    // La autorización (RBAC) se aplica en el router. Aquí sólo validamos inputs y consistencia.
 
     const {
       name,
@@ -197,6 +190,7 @@ exports.createRecyclingPoint = async (req, res) => {
       features,
       certifications,
       status,
+      administratorId,
     } = req.body || {};
 
     if (!name || !address || !city) {
@@ -204,6 +198,42 @@ exports.createRecyclingPoint = async (req, res) => {
     }
 
     const prisma = getPrisma();
+
+    // Por defecto el admin del punto es el creador.
+    // Un admin global puede crear el punto asignándolo a otra cuenta (p. ej. una empresa).
+    const callerRoles = normalizeRoles(req.user);
+    const isPlatformAdmin = callerRoles.includes('admin') || hasPermission(req.user, 'recycling:point:manage:any');
+    const resolvedAdministratorId = administratorId && isPlatformAdmin
+      ? String(administratorId)
+      : String(req.userId);
+
+    if (administratorId && !isPlatformAdmin) {
+      return res.status(403).json({ success: false, message: 'Solo un admin global puede asignar administratorId' });
+    }
+
+    // Si se asigna a un tercero, validar que exista y que sea una cuenta apta.
+    if (resolvedAdministratorId !== String(req.userId)) {
+      const target = await prisma.user.findUnique({
+        where: { id: resolvedAdministratorId },
+        select: { id: true, accountType: true, roles: true },
+      }).catch(() => null);
+
+      if (!target) {
+        return res.status(400).json({ success: false, message: 'administratorId inválido: usuario no existe' });
+      }
+
+      const targetRoles = Array.isArray(target.roles) ? target.roles.map(String) : [];
+      const isTargetPlatformAdmin = targetRoles.includes('admin');
+      const isTargetCompany = String(target.accountType || '') === 'company';
+
+      if (!isTargetCompany && !isTargetPlatformAdmin) {
+        return res.status(400).json({
+          success: false,
+          message: 'administratorId inválido: el administrador del punto debe ser una cuenta company (o admin global)'
+        });
+      }
+    }
+
     const point = await prisma.recyclingPoint.create({
       data: {
         name: String(name),
@@ -220,12 +250,12 @@ exports.createRecyclingPoint = async (req, res) => {
         features: features || undefined,
         certifications: certifications || undefined,
         status: status || 'active',
-        administratorId: String(req.userId),
+        administratorId: resolvedAdministratorId,
       },
     });
 
-    // Marca al creador como admin de reciclaje (útil para gating UI, además del rol por punto).
-    await addUserRole(prisma, req.userId, 'recycling_admin');
+    // Marca al administrador real del punto como admin de reciclaje (útil para gating UI y permisos RBAC).
+    await addUserRole(prisma, resolvedAdministratorId, 'recycling_admin');
 
     return res.status(201).json({ success: true, message: 'Punto de reciclaje creado exitosamente', data: { recyclingPoint: { ...point, _id: point.id } } });
   } catch (error) {
@@ -246,6 +276,46 @@ exports.updateRecyclingPoint = async (req, res) => {
 
     const data = { ...req.body };
     if (data.acceptedMaterials) data.acceptedMaterials = normalizeAcceptedMaterials(data.acceptedMaterials);
+
+    // Endurecimiento: cambiar administratorId sólo se permite a admin global.
+    if (Object.prototype.hasOwnProperty.call(data, 'administratorId')) {
+      const userRoles = normalizeRoles(req.user);
+      const isPlatformAdmin = userRoles.includes('admin') || hasPermission(req.user, 'recycling:point:manage:any');
+      if (!isPlatformAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'No puedes cambiar el administrador del punto'
+        });
+      }
+
+      const nextAdminId = data.administratorId ? String(data.administratorId) : '';
+      if (!nextAdminId) {
+        return res.status(400).json({ success: false, message: 'administratorId inválido' });
+      }
+
+      const target = await prisma.user.findUnique({
+        where: { id: nextAdminId },
+        select: { id: true, accountType: true, roles: true },
+      }).catch(() => null);
+
+      if (!target) {
+        return res.status(400).json({ success: false, message: 'administratorId inválido: usuario no existe' });
+      }
+
+      const targetRoles = Array.isArray(target.roles) ? target.roles.map(String) : [];
+      const isTargetPlatformAdmin = targetRoles.includes('admin');
+      const isTargetCompany = String(target.accountType || '') === 'company';
+
+      if (!isTargetCompany && !isTargetPlatformAdmin) {
+        return res.status(400).json({
+          success: false,
+          message: 'administratorId inválido: el administrador del punto debe ser una cuenta company (o admin global)'
+        });
+      }
+
+      await addUserRole(prisma, nextAdminId, 'recycling_admin');
+      data.administratorId = nextAdminId;
+    }
 
     const updated = await prisma.recyclingPoint.update({ where: { id: pointId }, data });
     return res.json({ success: true, message: 'Punto actualizado', data: { recyclingPoint: { ...updated, _id: updated.id } } });

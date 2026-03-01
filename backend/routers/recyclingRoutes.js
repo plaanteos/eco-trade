@@ -15,12 +15,28 @@ const recyclingSubmissionController = isDemoMode
 	? require('../controllers/recyclingSubmissionController_demo')
 	: require('../controllers/recyclingSubmissionController');
 
+const { hasPermission } = require('../utils/rbac');
+
 const {
 	loadRecyclingPoint,
 	requirePointAdmin,
 	requirePointOperatorOrAdmin,
 	requirePointOperator
 } = isDemoMode ? require('../middleware/recyclingAccess_demo') : require('../middleware/recyclingAccess');
+
+function allowPlatformAdminOrPointAdmin() {
+	return (req, res, next) => {
+		if (req.user && hasPermission(req.user, 'recycling:point:manage:any')) return next();
+		return requirePointAdmin()(req, res, next);
+	};
+}
+
+function allowPlatformAdminOrPointOperatorOrAdmin() {
+	return (req, res, next) => {
+		if (req.user && hasPermission(req.user, 'recycling:point:manage:any')) return next();
+		return requirePointOperatorOrAdmin()(req, res, next);
+	};
+}
 
 // =================== RUTAS DE PUNTOS DE RECICLAJE ===================
 
@@ -33,20 +49,20 @@ router.get('/points/:id/stats', optionalAuth, recyclingPointController.getRecycl
 
 // Rutas administrativas (requieren autenticación)
 router.post('/points', authenticate, requirePermission('recycling:point:manage:any'), recyclingPointController.createRecyclingPoint);
-router.put('/points/:id', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.updateRecyclingPoint);
-router.delete('/points/:id', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.deleteRecyclingPoint);
+router.put('/points/:id', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.updateRecyclingPoint);
+router.delete('/points/:id', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.deleteRecyclingPoint);
 
 // Dashboard y operadores (Admin del punto)
-router.get('/points/:id/dashboard', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.getPointDashboard);
-router.get('/points/:id/operators', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.listPointOperators);
-router.post('/points/:id/operators', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.createPointOperator);
-router.delete('/points/:id/operators/:operatorUserId', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.removePointOperator);
+router.get('/points/:id/dashboard', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.getPointDashboard);
+router.get('/points/:id/operators', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.listPointOperators);
+router.post('/points/:id/operators', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.createPointOperator);
+router.delete('/points/:id/operators/:operatorUserId', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.removePointOperator);
 
 // Activar / desactivar operadores
-router.patch('/points/:id/operators/:operatorUserId/status', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.setOperatorStatus);
+router.patch('/points/:id/operators/:operatorUserId/status', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.setOperatorStatus);
 
 // Stats (Operador o Admin)
-router.get('/points/:id/deliveries/stats', authenticate, loadRecyclingPoint('id'), requirePointOperatorOrAdmin(), recyclingPointController.getPointDeliveryStats);
+router.get('/points/:id/deliveries/stats', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointOperatorOrAdmin(), recyclingPointController.getPointDeliveryStats);
 
 // =================== RUTAS DE SUBMISSIONS ===================
 
