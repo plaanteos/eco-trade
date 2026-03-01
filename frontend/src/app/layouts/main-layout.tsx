@@ -130,42 +130,67 @@ export function MainLayout() {
                 </div>
               )}
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                    <Avatar>
-                      <AvatarImage src={user?.profileImage} alt={user?.username} />
-                      <AvatarFallback>
-                        {user?.username?.charAt(0).toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">{user?.username}</p>
-                      <p className="text-xs text-gray-500">{user?.email}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
-                    <User className="mr-2 h-4 w-4" />
-                    Perfil
-                  </DropdownMenuItem>
-                  {!isStaff && (
-                    <DropdownMenuItem onClick={() => navigate('/dashboard/ecocoins')}>
-                      <Coins className="mr-2 h-4 w-4" />
-                      EcoCoins: {user?.ecoCoins || 0}
+              {/* Desktop: botones visibles */}
+              <div className="hidden md:flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate('/dashboard/profile')}
+                  className="gap-2 max-w-[220px]"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.profileImage} alt={user?.username} />
+                    <AvatarFallback>
+                      {user?.username?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{user?.username}</span>
+                </Button>
+
+                <Button variant="outline" onClick={handleLogout} className="gap-2">
+                  <LogOut className="w-4 h-4" />
+                  Cerrar sesión
+                </Button>
+              </div>
+
+              {/* Mobile: mantener dropdown */}
+              <div className="md:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                      <Avatar>
+                        <AvatarImage src={user?.profileImage} alt={user?.username} />
+                        <AvatarFallback>
+                          {user?.username?.charAt(0).toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium">{user?.username}</p>
+                        <p className="text-xs text-gray-500">{user?.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
+                      <User className="mr-2 h-4 w-4" />
+                      Perfil
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Cerrar sesión
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    {!isStaff && (
+                      <DropdownMenuItem onClick={() => navigate('/dashboard/ecocoins')}>
+                        <Coins className="mr-2 h-4 w-4" />
+                        EcoCoins: {user?.ecoCoins || 0}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Cerrar sesión
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
 
