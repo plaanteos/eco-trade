@@ -33,27 +33,36 @@ export function MainLayout() {
   }, [user, isLoading, navigate]);
 
   const isStaff = Boolean(user?.recyclingAccess?.isStaff);
+  const isPureOperator = Boolean(user?.recyclingAccess?.isPureOperator);
+  const isCompanyOrAdmin = Boolean(
+    user?.recyclingAccess?.isCompanyAccount ||
+    user?.recyclingAccess?.isPlatformAdmin ||
+    user?.recyclingAccess?.isAdmin
+  );
   const isSeller = Boolean(user?.roles?.includes('seller'));
 
   useEffect(() => {
     if (isLoading || !user) return;
-    if (isStaff) return;
+    // Los operadores puros, empresas y admins no pasan por onboarding.
+    if (isPureOperator || isCompanyOrAdmin) return;
 
     const onboardingCompleted = Boolean((user as any)?.onboardingCompleted || user?.preferences?.onboardingCompleted);
     if (!onboardingCompleted && location.pathname !== '/dashboard/onboarding') {
       navigate('/dashboard/onboarding', { replace: true });
     }
-  }, [isLoading, user, isStaff, location.pathname, navigate]);
+  }, [isLoading, user, isPureOperator, isCompanyOrAdmin, location.pathname, navigate]);
 
   useEffect(() => {
     if (isLoading || !user) return;
-    if (!isStaff) return;
+    // Solo los operadores puros (creados por una empresa) quedan restringidos a reciclaje.
+    // Las cuentas empresa/admin tienen acceso completo.
+    if (!isPureOperator) return;
 
     const allowed = new Set(['/dashboard/recycling', '/dashboard/profile']);
     if (!allowed.has(location.pathname)) {
       navigate('/dashboard/recycling', { replace: true });
     }
-  }, [isStaff, isLoading, user, location.pathname, navigate]);
+  }, [isPureOperator, isLoading, user, location.pathname, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -75,12 +84,15 @@ export function MainLayout() {
     return null;
   }
 
-  const navItems = isStaff
+  // Operador puro: solo ve reciclaje.
+  // Empresa/admin: nav completa (pueden gestionar puntos + usar el marketplace).
+  // Usuario normal: nav estándar según si es vendedor.
+  const navItems = isPureOperator
     ? [{ to: '/dashboard/recycling', icon: Recycle, label: 'Reciclaje' }]
     : [
         { to: '/dashboard', icon: Home, label: 'Inicio' },
         { to: '/dashboard/search', icon: Search, label: 'Buscar' },
-        ...(isSeller ? [{ to: '/dashboard/sell', icon: Package, label: 'Vender' }] : []),
+        ...(isSeller || isCompanyOrAdmin ? [{ to: '/dashboard/sell', icon: Package, label: 'Vender' }] : []),
         { to: '/dashboard/ecocoins', icon: Coins, label: 'EcoCoins' },
         { to: '/dashboard/recycling', icon: Recycle, label: 'Reciclaje' },
       ];

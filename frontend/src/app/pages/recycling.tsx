@@ -127,7 +127,7 @@ interface PointDashboard {
 }
 
 export function RecyclingPage() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const isAdmin = Boolean(user?.recyclingAccess?.isAdmin);
   const isOperator = Boolean(user?.recyclingAccess?.isOperator);
   const isStaff = Boolean(user?.recyclingAccess?.isStaff);
@@ -162,6 +162,8 @@ export function RecyclingPage() {
   const [adminDashboard, setAdminDashboard] = useState<PointDashboard | null>(null);
   const [adminOperators, setAdminOperators] = useState<PointOperator[]>([]);
   const [newOperator, setNewOperator] = useState({ username: '', email: '', password: '' });
+  const [newPoint, setNewPoint] = useState({ name: '', address: '', city: '', state: '' });
+  const [isCreatingPoint, setIsCreatingPoint] = useState(false);
 
   const adminPointIds = new Set<string>(user?.recyclingAccess?.adminPointIds || []);
   const operatorPointIds = new Set<string>(user?.recyclingAccess?.operatorPointIds || []);
@@ -586,6 +588,33 @@ export function RecyclingPage() {
       toast.error(error.message || 'No se pudo verificar');
     } finally {
       setIsAdminLoading(false);
+    }
+  };
+
+  const createAdminPoint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPoint.name || !newPoint.address || !newPoint.city) {
+      toast.error('Nombre, dirección y ciudad son obligatorios');
+      return;
+    }
+    setIsCreatingPoint(true);
+    try {
+      const response = await api.createRecyclingPoint({
+        name: newPoint.name.trim(),
+        address: newPoint.address.trim(),
+        city: newPoint.city.trim(),
+        state: newPoint.state.trim() || undefined,
+      });
+      if (response.success) {
+        toast.success('Punto de reciclaje creado');
+        setNewPoint({ name: '', address: '', city: '', state: '' });
+        await refreshProfile();
+        await loadRecyclingPoints();
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'No se pudo crear el punto');
+    } finally {
+      setIsCreatingPoint(false);
     }
   };
 
@@ -1139,6 +1168,60 @@ export function RecyclingPage() {
 
         {/* Admin Tab */}
         <TabsContent value="admin" className="space-y-4">
+          {allowedAdminPoints.length === 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Crear tu primer punto de reciclaje
+                </CardTitle>
+                <CardDescription>
+                  Aún no tienes un punto de reciclaje registrado. Crea uno para empezar a gestionar entregas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={createAdminPoint} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label>Nombre del punto *</Label>
+                      <Input
+                        placeholder="Ej: Centro de reciclaje Norte"
+                        value={newPoint.name}
+                        onChange={(e) => setNewPoint({ ...newPoint, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Ciudad *</Label>
+                      <Input
+                        placeholder="Ej: Buenos Aires"
+                        value={newPoint.city}
+                        onChange={(e) => setNewPoint({ ...newPoint, city: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Dirección *</Label>
+                    <Input
+                      placeholder="Ej: Av. Corrientes 1234"
+                      value={newPoint.address}
+                      onChange={(e) => setNewPoint({ ...newPoint, address: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Provincia / Estado</Label>
+                    <Input
+                      placeholder="Ej: CABA"
+                      value={newPoint.state}
+                      onChange={(e) => setNewPoint({ ...newPoint, state: e.target.value })}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isCreatingPoint}>
+                    {isCreatingPoint ? 'Creando...' : 'Crear punto de reciclaje'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1323,6 +1406,7 @@ export function RecyclingPage() {
               </Card>
             </CardContent>
           </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -14,8 +14,12 @@ interface User {
     isAdmin?: boolean;
     isOperator?: boolean;
     isStaff?: boolean;
+    isPureOperator?: boolean;
+    isCompanyAccount?: boolean;
+    isPlatformAdmin?: boolean;
     adminPointIds?: string[];
     operatorPointIds?: string[];
+    accountType?: string;
   };
   ecoCoins: number;
   sustainabilityScore: number;
@@ -71,6 +75,9 @@ function withSafeRecyclingAccess(user: User): User {
       isAdmin: false,
       isOperator: false,
       isStaff: false,
+      isPureOperator: false,
+      isCompanyAccount: false,
+      isPlatformAdmin: false,
       adminPointIds: [],
       operatorPointIds: [],
     },

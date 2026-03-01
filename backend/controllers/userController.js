@@ -71,22 +71,47 @@ function computeSustainabilityScore({ ecoCoins = 0, totalTransactions = 0, ratin
 async function getRecyclingAccess(prisma, userId) {
   const uid = String(userId);
 
-  const [adminPoints, operatorMemberships] = await Promise.all([
+  const [userRecord, adminPoints, operatorMemberships] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: uid },
+      select: { roles: true, accountType: true },
+    }).catch(() => null),
     prisma.recyclingPoint.findMany({ where: { administratorId: uid }, select: { id: true } }).catch(() => []),
     prisma.recyclingPointOperator.findMany({ where: { userId: uid }, select: { pointId: true } }).catch(() => []),
   ]);
+
+  const userRoles = Array.isArray(userRecord?.roles) ? userRecord.roles.map(String) : [];
+  const accountType = String(userRecord?.accountType || 'individual');
+
+  // Admin de plataforma o admin de reciclaje: acceso de admin aunque no tenga puntos aún.
+  const isPlatformAdmin = userRoles.includes('admin') || userRoles.includes('recycling_admin');
+  // Cuenta empresa: administrador de puntos por definición de negocio.
+  const isCompanyAccount = accountType === 'company';
+  // Operador puro: creado por una empresa/admin, solo gestiona entregas.
+  const isPureOperator = userRoles.includes('recycling_operator') && !isPlatformAdmin && !isCompanyAccount;
 
   const adminPointIds = Array.isArray(adminPoints) ? adminPoints.map((p) => p.id) : [];
   const operatorPointIds = Array.isArray(operatorMemberships)
     ? Array.from(new Set(operatorMemberships.map((m) => m.pointId)))
     : [];
 
+  // isAdmin: tiene puntos asignados, O es empresa/admin global.
+  const isAdmin = adminPointIds.length > 0 || isPlatformAdmin || isCompanyAccount;
+  // isOperator: tiene membresías de operador Y no es ya admin.
+  const isOperator = operatorPointIds.length > 0 && !isAdmin;
+  // isStaff: agrupa a cualquier rol con responsabilidad operativa.
+  const isStaff = isAdmin || isOperator || isPureOperator;
+
   return {
-    isAdmin: adminPointIds.length > 0,
-    isOperator: operatorPointIds.length > 0,
-    isStaff: adminPointIds.length > 0 || operatorPointIds.length > 0,
+    isAdmin,
+    isOperator,
+    isStaff,
+    isPureOperator,
+    isCompanyAccount,
+    isPlatformAdmin,
     adminPointIds,
     operatorPointIds,
+    accountType,
   };
 }
 

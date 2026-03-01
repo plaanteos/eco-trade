@@ -276,6 +276,22 @@ class ApiClient {
     return this.request<ApiResponse>(`/recycling/points/${id}/stats`);
   }
 
+  async createRecyclingPoint(data: {
+    name: string;
+    address: string;
+    city: string;
+    state?: string;
+    phone?: string;
+    email?: string;
+    description?: string;
+    acceptedMaterials?: Array<{ materialType: string; rewardPerKg: number }>;
+  }) {
+    return this.request<ApiResponse>('/recycling/points', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async createRecyclingSubmission(submissionData: {
     recyclingPointId: string;
     materials: Array<{
