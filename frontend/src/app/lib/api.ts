@@ -12,9 +12,12 @@ interface ApiResponse<T = any> {
 
 class ApiClient {
   private baseUrl: string;
+  private timeoutMs: number;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+    const rawTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS);
+    this.timeoutMs = Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 12000;
   }
 
   private getHeaders(): HeadersInit {
@@ -35,12 +38,17 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), this.timeoutMs);
+
     const config: RequestInit = {
       ...options,
       headers: {
         ...this.getHeaders(),
         ...options.headers,
       },
+      signal: controller.signal,
     };
 
     try {
@@ -48,13 +56,25 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || data.error || 'Request failed');
+        const err: any = new Error(data.message || data.error || 'Request failed');
+        err.status = response.status;
+        err.data = data;
+        throw err;
       }
 
       return data;
     } catch (error) {
+      // Normalizar abort/timeout.
+      if ((error as any)?.name === 'AbortError') {
+        const err: any = new Error('Request timeout');
+        err.code = 'ETIMEDOUT';
+        err.status = 0;
+        throw err;
+      }
       console.error('API Error:', error);
       throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 

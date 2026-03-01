@@ -84,8 +84,6 @@ exports.getAllProducts = async (req, res) => {
  */
 exports.createProduct = async (req, res) => {
   try {
-    console.log('Datos recibidos para crear producto:', req.body);
-    
     const { title, description, price, category, condition, location } = req.body;
     
     if (!title || !description || !price || !category || !condition) {

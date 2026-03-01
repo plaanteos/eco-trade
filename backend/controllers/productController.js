@@ -3,6 +3,8 @@ const { getPrisma } = require('../config/prismaClient');
 const demoProductsStore = require('../utils/demoProductsStore');
 const { normalizeRoles } = require('../utils/rbac');
 
+const isDemoMode = String(process.env.DEMO_MODE || '').toLowerCase() === 'true';
+
 function sanitizeProductForPublic(product) {
   if (!product || typeof product !== 'object') return product;
 
@@ -49,6 +51,16 @@ const isMongoAvailable = () => {
   return isConnected();
 };
 
+function requireDbOrDemo(res) {
+  if (isMongoAvailable()) return { mode: 'db' };
+  if (isDemoMode) return { mode: 'demo' };
+  res.status(503).json({
+    success: false,
+    message: 'Base de datos no disponible'
+  });
+  return null;
+}
+
 // Controlador base para productos
 exports.getAllProducts = async (req, res) => {
   try {
@@ -58,7 +70,10 @@ exports.getAllProducts = async (req, res) => {
     const p = Math.max(1, Number(page) || 1);
     const skip = take ? (p - 1) * take : 0;
 
-    if (isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode === 'db') {
       const prisma = getPrisma();
       const products = await prisma.product.findMany({
         orderBy: { createdAt: 'desc' },
@@ -69,13 +84,16 @@ exports.getAllProducts = async (req, res) => {
       return res.json(products.map((p) => sanitizeProductForPublic({ ...p, _id: p.id })));
     }
 
-    // Usar datos de demostración
+    // Usar datos de demostración (solo DEMO_MODE)
     const list = demoProductsStore.list();
     const paged = take ? list.slice(skip, skip + take) : list;
     return res.json(paged.map((p) => sanitizeProductForPublic(p)));
   } catch (err) {
-    console.log('Usando datos de demostración:', err.message);
-    return res.json(demoProductsStore.list().map((p) => sanitizeProductForPublic(p)));
+    console.error('Error en getAllProducts:', err);
+    if (isDemoMode) {
+      return res.json(demoProductsStore.list().map((p) => sanitizeProductForPublic(p)));
+    }
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
@@ -115,12 +133,15 @@ exports.createProduct = async (req, res) => {
 
     let product;
 
-    if (isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode === 'db') {
       const prisma = getPrisma();
       product = await prisma.product.create({ data: productData });
       product = { ...product, _id: product.id };
     } else {
-      // Usar datos temporales
+      // Usar datos temporales (solo DEMO_MODE)
       product = demoProductsStore.create(productData);
     }
 
@@ -149,7 +170,10 @@ exports.searchProducts = async (req, res) => {
     
     let products;
     
-    if (isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode === 'db') {
       const prisma = getPrisma();
       const where = {};
 
@@ -172,7 +196,7 @@ exports.searchProducts = async (req, res) => {
       products = await prisma.product.findMany({ where, orderBy: { createdAt: 'desc' } });
       products = products.map((p) => sanitizeProductForPublic({ ...p, _id: p.id }));
     } else {
-      // Usar datos de demostración con filtros
+      // Usar datos de demostración con filtros (solo DEMO_MODE)
       products = demoProductsStore.list().filter(product => {
         let matches = true;
         
@@ -218,22 +242,27 @@ exports.searchProducts = async (req, res) => {
     });
   } catch (error) {
     console.error('Error en searchProducts:', error);
-    // Fallback a datos de demo en caso de error
-    const demoProducts = demoProductsStore.list();
-    res.json({
-      success: true,
-      data: {
-        products: demoProducts.map((p) => sanitizeProductForPublic(p)),
-        total: demoProducts.length
-      }
-    });
+    if (isDemoMode) {
+      const demoProducts = demoProductsStore.list();
+      return res.json({
+        success: true,
+        data: {
+          products: demoProducts.map((p) => sanitizeProductForPublic(p)),
+          total: demoProducts.length
+        }
+      });
+    }
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
 // Obtener producto por ID
 exports.getProductById = async (req, res) => {
   try {
-    if (!isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode !== 'db') {
       const p = demoProductsStore.getById(req.params.id);
       if (!p) {
         return res.status(404).json({ success: false, message: 'Producto no encontrado' });
@@ -277,7 +306,10 @@ exports.updateProduct = async (req, res) => {
     if (condition) updateData.condition = condition;
     if (location) updateData.locationText = location;
     
-    if (!isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode !== 'db') {
       const existing = demoProductsStore.getById(req.params.id);
       if (!existing) {
         return res.status(404).json({ success: false, message: 'Producto no encontrado' });
@@ -332,7 +364,10 @@ exports.updateProduct = async (req, res) => {
 // Eliminar producto
 exports.deleteProduct = async (req, res) => {
   try {
-    if (!isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode !== 'db') {
       const existing = demoProductsStore.getById(req.params.id);
       if (!existing) {
         return res.status(404).json({ success: false, message: 'Producto no encontrado' });
@@ -390,7 +425,10 @@ exports.getMyProducts = async (req, res) => {
     const userId = req.user?.id || 'demo_user';
 
     let products;
-    if (isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode === 'db') {
       const prisma = getPrisma();
       products = await prisma.product.findMany({
         where: { sellerId: String(req.userId) },
@@ -423,7 +461,10 @@ exports.getMyProducts = async (req, res) => {
 exports.showInterest = async (req, res) => {
   try {
     let product;
-    if (isMongoAvailable()) {
+    const env = requireDbOrDemo(res);
+    if (!env) return;
+
+    if (env.mode === 'db') {
       const prisma = getPrisma();
       product = await prisma.product.findUnique({ where: { id: String(req.params.id) } });
       if (product) product = { ...product, _id: product.id };

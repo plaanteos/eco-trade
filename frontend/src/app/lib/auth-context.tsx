@@ -63,6 +63,20 @@ function normalizeUser(rawUser: any): User {
   };
 }
 
+function withSafeRecyclingAccess(user: User): User {
+  return {
+    ...user,
+    // No confiar en flags de staff/admin cacheados.
+    recyclingAccess: {
+      isAdmin: false,
+      isOperator: false,
+      isStaff: false,
+      adminPointIds: [],
+      operatorPointIds: [],
+    },
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -84,7 +98,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(normalizeUser(JSON.parse(storedUser)));
+        // Inicializar con un usuario cacheado pero con permisos de reciclaje en falso.
+        // Los permisos reales se confirman con /users/profile.
+        const cached = normalizeUser(JSON.parse(storedUser));
+        const safeCached = withSafeRecyclingAccess(cached);
+        setUser(safeCached);
+        localStorage.setItem('user', JSON.stringify(safeCached));
         
         // Try to refresh profile from server
         try {
@@ -96,7 +115,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (error) {
           console.error('Failed to refresh profile:', error);
-          // Keep the cached user if refresh fails
+          const status = (error as any)?.status;
+          if (status === 401 || status === 403) {
+            // Token inválido/expirado: limpiar sesión.
+            setUser(null);
+            setToken(null);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
         }
       }
 
@@ -176,6 +202,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to refresh profile:', error);
+      const status = (error as any)?.status;
+      if (status === 401 || status === 403) {
+        // Si el token ya no sirve, cerrar sesión para evitar UI inconsistente.
+        setUser(null);
+        setToken(null);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
   };
 

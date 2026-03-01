@@ -24,24 +24,26 @@ exports.getAllTransactions = async (req, res) => {
     const p = Math.max(1, Number(page) || 1);
     const skip = (p - 1) * take;
 
-    // Sin base de datos (modo demo/local): devolver vacío de forma explícita
+    // Sin base de datos: en DEMO_MODE devolver vacío; fuera de DEMO_MODE es un error (no esconderlo en prod).
     if (!isConnected()) {
-      return res.json({
-        success: true,
-        data: {
-          transactions: [],
-          total: 0,
-          pagination: { page: p, limit: take, total: 0, pages: 1 },
-        }
+      if (isDemoMode) {
+        return res.json({
+          success: true,
+          data: {
+            transactions: [],
+            total: 0,
+            pagination: { page: p, limit: take, total: 0, pages: 1 },
+          }
+        });
+      }
+      return res.status(503).json({
+        success: false,
+        message: 'Base de datos no disponible'
       });
     }
 
     const userRoles = normalizeRoles(req.user);
     const isAdmin = userRoles.includes('admin');
-
-    const query = isAdmin
-      ? {}
-      : { $or: [{ buyer: req.userId }, { seller: req.userId }] };
 
     const prisma = getPrisma();
     const where = isAdmin

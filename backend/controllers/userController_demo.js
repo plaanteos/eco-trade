@@ -13,8 +13,6 @@ if (!isDemoMode) {
  */
 exports.register = async (req, res) => {
   try {
-    console.log('Datos recibidos para registro:', req.body);
-    
     const { username, email, password, fullName, country } = req.body;
     
     if (!username || !email || !password || !country) {
@@ -93,8 +91,6 @@ exports.register = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
-    console.log('Datos recibidos para login:', req.body);
-    
     const { email, password } = req.body;
 
     if (!email || !password) {

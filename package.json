@@ -19,6 +19,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",
+    "db:check": "node backend/scripts/dbCheck.js",
     "ecocoins:backfill-ledger": "node backend/scripts/backfillEcoCoinLedger.js"
   },
   "dependencies": {
