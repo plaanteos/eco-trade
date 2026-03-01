@@ -75,6 +75,8 @@ model User {
   pointMemberships   RecyclingPointOperator[]
   verifiedSubmissions RecyclingSubmission[] @relation("VerifiedBy")
   recyclingSubmissions RecyclingSubmission[] @relation("UserSubmissions")
+
+  ecoCoinLedgerEntries EcoCoinLedger[]
 }
 
 model Product {
@@ -143,6 +145,8 @@ model Transaction {
 
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+
+  ecoCoinLedgerEntries EcoCoinLedger[]
 
   @@index([buyerId, status])
   @@index([sellerId, status])
@@ -221,6 +225,8 @@ model RecyclingSubmission {
 
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
+
+  ecoCoinLedgerEntries EcoCoinLedger[]
 
   @@index([recyclingPointId, verificationStatus])
   @@index([userId])
