@@ -113,7 +113,7 @@ export function MainLayout() {
             </Link>
 
             {/* Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1 min-w-0 flex-1 justify-center">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.to;
@@ -132,9 +132,9 @@ export function MainLayout() {
             </nav>
 
             {/* User Menu */}
-            <div className="flex items-center gap-4">
-              {user && (
-                <div className="hidden sm:flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-3 shrink-0">
+              {user && !isPureOperator && (
+                <div className="hidden sm:flex items-center gap-2 text-sm shrink-0">
                   <Coins className="w-4 h-4 text-green-600" />
                   <span className="font-semibold text-green-600">
                     {user.ecoCoins || 0}
@@ -143,11 +143,11 @@ export function MainLayout() {
               )}
 
               {/* Desktop: botones visibles */}
-              <div className="hidden md:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 shrink-0">
                 <Button
                   variant="ghost"
                   onClick={() => navigate('/dashboard/profile')}
-                  className="gap-2 max-w-[220px]"
+                  className="gap-2"
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.profileImage} alt={user?.username} />
@@ -155,7 +155,7 @@ export function MainLayout() {
                       {user?.username?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="truncate">{user?.username}</span>
+                  <span className="font-medium">{user?.username}</span>
                 </Button>
 
                 <Button variant="outline" onClick={handleLogout} className="gap-2">
