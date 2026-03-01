@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { MainLayout } from './layouts/main-layout';
 import { HomePage } from './pages/home';
+import { LandingPage } from './pages/landing';
 import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
 import { SearchPage } from './pages/search';
@@ -17,15 +18,24 @@ export const router = createBrowserRouter([
     Component: AuthCallbackPage,
   },
   {
-    path: '/login',
-    Component: LoginPage,
-  },
-  {
-    path: '/register',
-    Component: RegisterPage,
-  },
-  {
     path: '/',
+    children: [
+      {
+        index: true,
+        Component: LandingPage,
+      },
+      {
+        path: 'login',
+        Component: LoginPage,
+      },
+      {
+        path: 'register',
+        Component: RegisterPage,
+      },
+    ],
+  },
+  {
+    path: '/dashboard',
     Component: MainLayout,
     children: [
       {

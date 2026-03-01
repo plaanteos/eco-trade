@@ -71,7 +71,7 @@ export function OnboardingPage() {
     if (!user) return;
 
     if (alreadyCompleted) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
       return;
     }
 
@@ -176,7 +176,7 @@ export function OnboardingPage() {
       });
 
       await refreshProfile();
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err?.message || 'No se pudo completar el onboarding');
     } finally {

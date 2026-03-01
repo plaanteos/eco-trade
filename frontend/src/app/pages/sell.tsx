@@ -95,7 +95,7 @@ export function SellPage() {
             <Button onClick={handleActivateSeller} disabled={isActivating} className="flex-1">
               {isActivating ? 'Activando...' : 'Activar ventas'}
             </Button>
-            <Button type="button" variant="outline" onClick={() => navigate('/')}>
+            <Button type="button" variant="outline" onClick={() => navigate('/dashboard')}> 
               Volver
             </Button>
           </CardFooter>
@@ -300,7 +300,7 @@ export function SellPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/search')}
+              onClick={() => navigate('/dashboard/search')}
             >
               Cancelar
             </Button>

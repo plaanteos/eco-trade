@@ -31,7 +31,7 @@ export function AuthCallbackPage() {
         }
 
         await loginWithSupabaseAccessToken(accessToken);
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       } catch (e: any) {
         setError(e?.message || 'Error procesando login OAuth');
       }

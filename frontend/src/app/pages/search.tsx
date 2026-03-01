@@ -242,7 +242,7 @@ export function SearchPage() {
               No se encontraron productos con estos filtros
             </p>
             {isSeller && (
-              <Button onClick={() => navigate('/sell')} className="gap-2">
+              <Button onClick={() => navigate('/dashboard/sell')} className="gap-2">
                 <Leaf className="w-4 h-4" />
                 Publica el primer producto
               </Button>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth-context';
 import { Button } from '../components/ui/button';
@@ -22,7 +22,7 @@ const COUNTRIES = [
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, user, isLoading: isAuthLoading } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -32,6 +32,12 @@ export function RegisterPage() {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthLoading, user, navigate]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -66,7 +72,7 @@ export function RegisterPage() {
         password: formData.password,
         country: formData.country,
       });
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Error al registrar. Por favor, intenta de nuevo.');
     } finally {

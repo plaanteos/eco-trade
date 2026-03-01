@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../lib/auth-context';
 import { Button } from '../components/ui/button';
@@ -11,11 +11,17 @@ import { supabase } from '../lib/supabase';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user, isLoading: isAuthLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthLoading, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +30,7 @@ export function LoginPage() {
 
     try {
       await login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión. Por favor, verifica tus credenciales.');
     } finally {

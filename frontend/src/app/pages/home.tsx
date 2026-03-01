@@ -19,14 +19,14 @@ export function HomePage() {
           La plataforma de economía circular que recompensa tu sostenibilidad
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/search">
+          <Link to="/dashboard/search">
             <Button size="lg" variant="secondary" className="gap-2">
               <ShoppingBag className="w-5 h-5" />
               Explorar Productos
             </Button>
           </Link>
           {isSeller && (
-            <Link to="/sell">
+            <Link to="/dashboard/sell">
               <Button size="lg" variant="outline" className="bg-white/10 border-white text-white hover:bg-white/20 gap-2">
                 Vender Producto
               </Button>
@@ -140,13 +140,13 @@ export function HomePage() {
           Juntos podemos hacer la diferencia.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/recycling">
+          <Link to="/dashboard/recycling">
             <Button size="lg" className="gap-2">
               <Recycle className="w-5 h-5" />
               Ver Puntos de Reciclaje
             </Button>
           </Link>
-          <Link to="/ecocoins">
+          <Link to="/dashboard/ecocoins">
             <Button size="lg" variant="outline" className="gap-2">
               <Coins className="w-5 h-5" />
               Ver Mis EcoCoins

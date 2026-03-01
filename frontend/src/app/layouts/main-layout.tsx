@@ -40,8 +40,8 @@ export function MainLayout() {
     if (isStaff) return;
 
     const onboardingCompleted = Boolean((user as any)?.onboardingCompleted || user?.preferences?.onboardingCompleted);
-    if (!onboardingCompleted && location.pathname !== '/onboarding') {
-      navigate('/onboarding', { replace: true });
+    if (!onboardingCompleted && location.pathname !== '/dashboard/onboarding') {
+      navigate('/dashboard/onboarding', { replace: true });
     }
   }, [isLoading, user, isStaff, location.pathname, navigate]);
 
@@ -49,9 +49,9 @@ export function MainLayout() {
     if (isLoading || !user) return;
     if (!isStaff) return;
 
-    const allowed = new Set(['/recycling', '/profile']);
+    const allowed = new Set(['/dashboard/recycling', '/dashboard/profile']);
     if (!allowed.has(location.pathname)) {
-      navigate('/recycling', { replace: true });
+      navigate('/dashboard/recycling', { replace: true });
     }
   }, [isStaff, isLoading, user, location.pathname, navigate]);
 
@@ -76,13 +76,13 @@ export function MainLayout() {
   }
 
   const navItems = isStaff
-    ? [{ to: '/recycling', icon: Recycle, label: 'Reciclaje' }]
+    ? [{ to: '/dashboard/recycling', icon: Recycle, label: 'Reciclaje' }]
     : [
-        { to: '/', icon: Home, label: 'Inicio' },
-        { to: '/search', icon: Search, label: 'Buscar' },
-        ...(isSeller ? [{ to: '/sell', icon: Package, label: 'Vender' }] : []),
-        { to: '/ecocoins', icon: Coins, label: 'EcoCoins' },
-        { to: '/recycling', icon: Recycle, label: 'Reciclaje' },
+        { to: '/dashboard', icon: Home, label: 'Inicio' },
+        { to: '/dashboard/search', icon: Search, label: 'Buscar' },
+        ...(isSeller ? [{ to: '/dashboard/sell', icon: Package, label: 'Vender' }] : []),
+        { to: '/dashboard/ecocoins', icon: Coins, label: 'EcoCoins' },
+        { to: '/dashboard/recycling', icon: Recycle, label: 'Reciclaje' },
       ];
 
   return (
@@ -92,7 +92,7 @@ export function MainLayout() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/dashboard" className="flex items-center gap-2">
               <img
                 src="/ecotrade-logo.png"
                 alt="EcoTrade"
@@ -149,12 +149,12 @@ export function MainLayout() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
                     <User className="mr-2 h-4 w-4" />
                     Perfil
                   </DropdownMenuItem>
                   {!isStaff && (
-                    <DropdownMenuItem onClick={() => navigate('/ecocoins')}>
+                    <DropdownMenuItem onClick={() => navigate('/dashboard/ecocoins')}>
                       <Coins className="mr-2 h-4 w-4" />
                       EcoCoins: {user?.ecoCoins || 0}
                     </DropdownMenuItem>
@@ -216,17 +216,17 @@ export function MainLayout() {
               <h3 className="font-semibold mb-4">Enlaces rápidos</h3>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li>
-                  <Link to="/search" className="hover:text-green-600">
+                  <Link to="/dashboard/search" className="hover:text-green-600">
                     Buscar productos
                   </Link>
                 </li>
                 <li>
-                  <Link to="/recycling" className="hover:text-green-600">
+                  <Link to="/dashboard/recycling" className="hover:text-green-600">
                     Puntos de reciclaje
                   </Link>
                 </li>
                 <li>
-                  <Link to="/ecocoins" className="hover:text-green-600">
+                  <Link to="/dashboard/ecocoins" className="hover:text-green-600">
                     EcoCoins
                   </Link>
                 </li>
