@@ -435,9 +435,10 @@ exports.verifySubmission = async (req, res) => {
     const desired = verificationStatus ? String(verificationStatus) : null;
     const status = desired && allowed.has(desired) ? desired : rewards.totalEcoCoins > 0 ? 'approved' : 'rejected';
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const newSubmission = await tx.recyclingSubmission.update({
-        where: { id: submissionId },
+    const result = await prisma.$transaction(async (tx) => {
+      // Idempotencia + anti-carrera: solo actualiza si sigue pendiente.
+      const attempt = await tx.recyclingSubmission.updateMany({
+        where: { id: submissionId, verificationStatus: 'pending' },
         data: {
           verifiedById: String(req.userId),
           verificationDate: new Date(),
@@ -445,10 +446,14 @@ exports.verifySubmission = async (req, res) => {
           verificationNotes: verificationNotes || '',
           submissionDetails: { ...(submission.submissionDetails || {}), actualTotalWeight: rewards.actualTotalWeight, verifiedMaterials: rewards.items },
           rewards: { totalEcoCoins: rewards.totalEcoCoins, breakdown: rewards.items },
-          tracking: {
-            ...appendTracking(submission.tracking, 'verified', req.userId),
-          },
+          tracking: appendTracking(submission.tracking, 'verified', req.userId),
         },
+      });
+
+      const updatedNow = attempt.count === 1;
+
+      const current = await tx.recyclingSubmission.findUnique({
+        where: { id: submissionId },
         include: {
           user: { select: { id: true, username: true, email: true, recyclingCode: true, ecoCoins: true } },
           recyclingPoint: { select: { id: true, name: true, city: true } },
@@ -456,14 +461,39 @@ exports.verifySubmission = async (req, res) => {
         },
       });
 
-      // Evitar doble distribución si la entrega ya acreditó ecoCoins.
-      const flags = getRewardFlags(submission.rewards);
-      const shouldDistribute = (status === 'approved' || status === 'partially_approved')
-        && rewards.totalEcoCoins > 0
-        && flags.rewardDistributed !== true;
+      if (!current) {
+        // No debería pasar, pero mantiene la transacción consistente.
+        throw new Error('Entrega no encontrada');
+      }
+
+      // Solo distribuir si esta request realmente hizo la transición desde pending.
+      const shouldDistribute = updatedNow
+        && (status === 'approved' || status === 'partially_approved')
+        && rewards.totalEcoCoins > 0;
 
       if (shouldDistribute) {
-        await tx.user.update({ where: { id: submission.userId }, data: { ecoCoins: { increment: rewards.totalEcoCoins } } });
+        await tx.user.update({
+          where: { id: submission.userId },
+          data: { ecoCoins: { increment: rewards.totalEcoCoins } },
+        });
+
+        if (typeof tx.ecoCoinLedger?.create === 'function') {
+          await tx.ecoCoinLedger.create({
+            data: {
+              userId: String(submission.userId),
+              delta: rewards.totalEcoCoins,
+              reason: 'recycling:reward',
+              recyclingSubmissionId: String(submissionId),
+              metadata: {
+                submissionCode: current?.submissionCode,
+                recyclingPointId: current?.recyclingPoint?.id,
+                recyclingPointName: current?.recyclingPoint?.name,
+                recyclingPointCity: current?.recyclingPoint?.city,
+              },
+            },
+          }).catch(() => null);
+        }
+
         await tx.recyclingSubmission.update({
           where: { id: submissionId },
           data: {
@@ -478,10 +508,25 @@ exports.verifySubmission = async (req, res) => {
         });
       }
 
-      return newSubmission;
+      const finalSubmission = shouldDistribute
+        ? await tx.recyclingSubmission.findUnique({
+            where: { id: submissionId },
+            include: {
+              user: { select: { id: true, username: true, email: true, recyclingCode: true, ecoCoins: true } },
+              recyclingPoint: { select: { id: true, name: true, city: true } },
+              verifiedBy: { select: { id: true, username: true, email: true } },
+            },
+          })
+        : current;
+
+      return { submission: finalSubmission || current, updatedNow };
     });
 
-    return res.json({ success: true, message: 'Entrega verificada', data: { submission: { ...updated, _id: updated.id } } });
+    return res.json({
+      success: true,
+      message: result.updatedNow ? 'Entrega verificada' : 'Entrega ya verificada (idempotente)',
+      data: { submission: { ...result.submission, _id: result.submission.id } },
+    });
   } catch (error) {
     console.error('Error en verifySubmission:', error);
     return res.status(500).json({ success: false, message: 'Error al verificar entrega', details: error.message });
@@ -571,15 +616,42 @@ exports.getSubmissionByCode = async (req, res) => {
     const prisma = getPrisma();
     const submission = await prisma.recyclingSubmission.findUnique({
       where: { submissionCode: String(code) },
-      include: {
-        user: { select: { id: true, username: true, email: true, recyclingCode: true } },
-        recyclingPoint: { select: { id: true, name: true, city: true } },
+      select: {
+        submissionCode: true,
+        createdAt: true,
+        updatedAt: true,
+        tracking: true,
+        verificationStatus: true,
+        verificationDate: true,
+        recyclingPoint: { select: { name: true, city: true } },
       },
     });
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Submission no encontrada' });
     }
-    return res.json({ success: true, data: { submission: { ...submission, _id: submission.id } } });
+
+    const tracking = submission.tracking && typeof submission.tracking === 'object' ? submission.tracking : {};
+    const history = Array.isArray(tracking.history)
+      ? tracking.history.map((h) => ({ status: h?.status, at: h?.at })).filter((h) => h.status && h.at)
+      : [];
+
+    return res.json({
+      success: true,
+      data: {
+        submission: {
+          submissionCode: submission.submissionCode,
+          createdAt: submission.createdAt,
+          updatedAt: submission.updatedAt,
+          verificationStatus: submission.verificationStatus,
+          verificationDate: submission.verificationDate,
+          recyclingPoint: submission.recyclingPoint || undefined,
+          tracking: {
+            currentStatus: tracking.currentStatus || undefined,
+            history,
+          },
+        },
+      },
+    });
   } catch (error) {
     console.error('Error en getSubmissionByCode:', error);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -626,7 +698,7 @@ exports.getPendingSubmissions = async (req, res) => {
   try {
     if (!ensureDb(res)) return;
 
-    const { recyclingPointId, status = 'pending', limit = 50 } = req.query || {};
+    const { recyclingPointId, status = 'pending', limit = 50, page = 1 } = req.query || {};
     if (!recyclingPointId) {
       return res.status(400).json({ success: false, message: 'recyclingPointId es obligatorio' });
     }
@@ -646,17 +718,33 @@ exports.getPendingSubmissions = async (req, res) => {
     }
 
     const take = Math.min(200, Math.max(1, Number(limit) || 50));
-    const subs = await prisma.recyclingSubmission.findMany({
-      where: { recyclingPointId: String(recyclingPointId), verificationStatus: String(status) },
-      orderBy: { createdAt: 'desc' },
-      take,
-      include: {
-        user: { select: { id: true, username: true, email: true, recyclingCode: true } },
-        recyclingPoint: { select: { id: true, name: true, address: true, city: true } },
+    const p = Math.max(1, Number(page) || 1);
+    const skip = (p - 1) * take;
+
+    const where = { recyclingPointId: String(recyclingPointId), verificationStatus: String(status) };
+    const [total, subs] = await Promise.all([
+      prisma.recyclingSubmission.count({ where }),
+      prisma.recyclingSubmission.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        include: {
+          user: { select: { id: true, username: true, email: true, recyclingCode: true } },
+          recyclingPoint: { select: { id: true, name: true, address: true, city: true } },
+        },
+      }),
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        submissions: subs.map((s) => ({ ...s, _id: s.id })),
+        total: subs.length,
+        statusFilter: String(status),
+        pagination: { page: p, limit: take, total, pages: Math.ceil(total / take) || 1 },
       },
     });
-
-    return res.json({ success: true, data: { submissions: subs.map((s) => ({ ...s, _id: s.id })), total: subs.length, statusFilter: String(status) } });
   } catch (error) {
     console.error('Error en getPendingSubmissions:', error);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -709,14 +797,30 @@ exports.getUserSubmissions = async (req, res) => {
     if (!ensureDb(res)) return;
 
     const prisma = getPrisma();
-    const subs = await prisma.recyclingSubmission.findMany({
-      where: { userId: String(req.userId) },
-      orderBy: { createdAt: 'desc' },
-      include: { recyclingPoint: { select: { id: true, name: true, city: true } } },
-      take: 50,
-    });
+    const { page = 1, limit = 50 } = req.query || {};
+    const take = Math.min(100, Math.max(1, Number(limit) || 50));
+    const p = Math.max(1, Number(page) || 1);
+    const skip = (p - 1) * take;
 
-    return res.json({ success: true, data: { submissions: subs.map((s) => ({ ...s, _id: s.id })) } });
+    const where = { userId: String(req.userId) };
+    const [total, subs] = await Promise.all([
+      prisma.recyclingSubmission.count({ where }),
+      prisma.recyclingSubmission.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: { recyclingPoint: { select: { id: true, name: true, city: true } } },
+        skip,
+        take,
+      }),
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        submissions: subs.map((s) => ({ ...s, _id: s.id })),
+        pagination: { page: p, limit: take, total, pages: Math.ceil(total / take) || 1 },
+      },
+    });
   } catch (error) {
     console.error('Error en getUserSubmissions:', error);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });

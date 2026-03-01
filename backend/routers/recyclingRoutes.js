@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 
 const isDemoMode = String(process.env.DEMO_MODE || '').toLowerCase() === 'true';
-const { authenticate, authorize, optionalAuth } = isDemoMode
+const { authenticate, authorize, optionalAuth, requirePermission } = isDemoMode
 	? require('../middleware/authMiddleware_demo')
 	: require('../middleware/authMiddleware');
 
@@ -31,7 +32,7 @@ router.get('/points/:id/materials', optionalAuth, recyclingPointController.getAc
 router.get('/points/:id/stats', optionalAuth, recyclingPointController.getRecyclingPointStats);
 
 // Rutas administrativas (requieren autenticación)
-router.post('/points', authenticate, recyclingPointController.createRecyclingPoint);
+router.post('/points', authenticate, requirePermission('recycling:point:manage:any'), recyclingPointController.createRecyclingPoint);
 router.put('/points/:id', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.updateRecyclingPoint);
 router.delete('/points/:id', authenticate, loadRecyclingPoint('id'), requirePointAdmin(), recyclingPointController.deleteRecyclingPoint);
 
@@ -65,11 +66,22 @@ router.post(
 );
 
 // Rutas públicas (por código de tracking)
-router.get('/submissions/code/:code', recyclingSubmissionController.getSubmissionByCode);
+const publicTrackingLimiter = rateLimit({
+	windowMs: Math.max(1, Number(process.env.RECYCLING_PUBLIC_TRACKING_RL_WINDOW_MS) || 15 * 60 * 1000),
+	max: Math.max(1, Number(process.env.RECYCLING_PUBLIC_TRACKING_RL_MAX) || 30),
+	standardHeaders: true,
+	legacyHeaders: false,
+	message: {
+		success: false,
+		message: 'Demasiadas solicitudes. Intenta de nuevo más tarde.'
+	}
+});
+
+router.get('/submissions/code/:code', publicTrackingLimiter, recyclingSubmissionController.getSubmissionByCode);
 
 // Rutas administrativas (verificación y gestión)
-router.get('/submissions/pending', authenticate, recyclingSubmissionController.getPendingSubmissions);
-router.patch('/submissions/:submissionId/status', authenticate, recyclingSubmissionController.updateSubmissionStatus);
-router.patch('/submissions/:submissionId/verify', authenticate, recyclingSubmissionController.verifySubmission);
+router.get('/submissions/pending', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.getPendingSubmissions);
+router.patch('/submissions/:submissionId/status', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.updateSubmissionStatus);
+router.patch('/submissions/:submissionId/verify', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.verifySubmission);
 
 module.exports = router;

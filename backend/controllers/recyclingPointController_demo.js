@@ -1,5 +1,32 @@
 const { store } = require('../utils/demoStore');
 
+function normalizeAcceptedMaterials(acceptedMaterials) {
+  const defaults = [
+    { materialType: 'Plástico PET', rewardPerKg: 2 },
+    { materialType: 'Cartón', rewardPerKg: 1 },
+    { materialType: 'Vidrio Transparente', rewardPerKg: 1 },
+  ];
+
+  const maxRewardPerKg = Math.max(0, Number(process.env.RECYCLING_MAX_REWARD_PER_KG) || 50);
+  const list = Array.isArray(acceptedMaterials) && acceptedMaterials.length > 0 ? acceptedMaterials : defaults;
+
+  const normalized = list.map((m) => {
+    const materialType = String(m?.materialType || '').trim();
+    const rewardPerKg = Number(m?.rewardPerKg);
+    if (!materialType) return null;
+    if (!Number.isFinite(rewardPerKg) || rewardPerKg < 0 || rewardPerKg > maxRewardPerKg) return null;
+    return { materialType, rewardPerKg };
+  });
+
+  if (normalized.some((x) => x === null)) {
+    const err = new Error(`acceptedMaterials inválido: rewardPerKg debe estar entre 0 y ${maxRewardPerKg}`);
+    err.code = 'INVALID_ACCEPTED_MATERIALS';
+    throw err;
+  }
+
+  return normalized;
+}
+
 exports.getAllRecyclingPoints = async (req, res) => {
   const { status } = req.query || {};
   const points = store.listPoints().filter((p) => (status ? p.status === status : true));
@@ -54,27 +81,57 @@ exports.getRecyclingPointStats = async (req, res) => {
 };
 
 exports.createRecyclingPoint = async (req, res) => {
-  const { name, address, city, state, acceptedMaterials, status } = req.body || {};
+  try {
+    const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+    const isAdmin = userRoles.includes('admin');
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo un administrador puede crear puntos de reciclaje'
+      });
+    }
 
-  const point = store.createPoint({
-    administratorId: req.userId,
-    name,
-    address,
-    city,
-    state,
-    status: status || 'active',
-    acceptedMaterials,
-  });
+    const { name, address, city, state, acceptedMaterials, status } = req.body || {};
 
-  return res.status(201).json({ success: true, message: 'Punto de reciclaje creado (modo demo)', data: { recyclingPoint: point } });
+    const point = store.createPoint({
+      administratorId: req.userId,
+      name,
+      address,
+      city,
+      state,
+      status: status || 'active',
+      acceptedMaterials: normalizeAcceptedMaterials(acceptedMaterials),
+    });
+
+    return res.status(201).json({ success: true, message: 'Punto de reciclaje creado (modo demo)', data: { recyclingPoint: point } });
+  } catch (error) {
+    if (error?.code === 'INVALID_ACCEPTED_MATERIALS') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    console.error('Error en createRecyclingPoint (DEMO):', error);
+    return res.status(500).json({ success: false, message: 'Error al crear punto de reciclaje', details: error.message });
+  }
 };
 
 exports.updateRecyclingPoint = async (req, res) => {
-  const point = req.recyclingPoint;
-  const updates = req.body || {};
-  const next = { ...point, ...updates };
-  store.pointsById.set(String(point._id), next);
-  return res.json({ success: true, message: 'Punto actualizado (modo demo)', data: { recyclingPoint: next } });
+  try {
+    const point = req.recyclingPoint;
+    const updates = req.body || {};
+    const next = { ...point, ...updates };
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'acceptedMaterials')) {
+      next.acceptedMaterials = normalizeAcceptedMaterials(updates.acceptedMaterials);
+    }
+
+    store.pointsById.set(String(point._id), next);
+    return res.json({ success: true, message: 'Punto actualizado (modo demo)', data: { recyclingPoint: next } });
+  } catch (error) {
+    if (error?.code === 'INVALID_ACCEPTED_MATERIALS') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    console.error('Error en updateRecyclingPoint (DEMO):', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
 };
 
 exports.deleteRecyclingPoint = async (req, res) => {

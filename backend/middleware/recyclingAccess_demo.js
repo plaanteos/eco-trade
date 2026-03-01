@@ -1,5 +1,10 @@
 const { store } = require('../utils/demoStore');
 
+const isDemoMode = String(process.env.DEMO_MODE || '').toLowerCase() === 'true';
+if (!isDemoMode) {
+  throw new Error('recyclingAccess_demo.js cargado con DEMO_MODE=false. Esto no debe ocurrir fuera de DEMO_MODE.');
+}
+
 function loadRecyclingPoint(paramKey = 'id') {
   return (req, res, next) => {
     const pointId = req.params[paramKey];

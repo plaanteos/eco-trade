@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
+const { normalizeRoles } = require('../utils/rbac');
 
 async function addUserRole(prisma, userId, role) {
   if (!userId || !role) return;
@@ -24,12 +25,33 @@ function ensureDb(res) {
 }
 
 function normalizeAcceptedMaterials(acceptedMaterials) {
-  if (Array.isArray(acceptedMaterials) && acceptedMaterials.length > 0) return acceptedMaterials;
-  return [
+  const defaults = [
     { materialType: 'Plástico PET', rewardPerKg: 2 },
     { materialType: 'Cartón', rewardPerKg: 1 },
     { materialType: 'Vidrio Transparente', rewardPerKg: 1 },
   ];
+
+  const maxRewardPerKg = Math.max(0, Number(process.env.RECYCLING_MAX_REWARD_PER_KG) || 50);
+
+  const list = Array.isArray(acceptedMaterials) && acceptedMaterials.length > 0
+    ? acceptedMaterials
+    : defaults;
+
+  const normalized = list.map((m) => {
+    const materialType = String(m?.materialType || '').trim();
+    const rewardPerKg = Number(m?.rewardPerKg);
+    if (!materialType) return null;
+    if (!Number.isFinite(rewardPerKg) || rewardPerKg < 0 || rewardPerKg > maxRewardPerKg) return null;
+    return { materialType, rewardPerKg };
+  });
+
+  if (normalized.some((x) => x === null)) {
+    const err = new Error(`acceptedMaterials inválido: rewardPerKg debe estar entre 0 y ${maxRewardPerKg}`);
+    err.code = 'INVALID_ACCEPTED_MATERIALS';
+    throw err;
+  }
+
+  return normalized;
 }
 
 exports.getAllRecyclingPoints = async (req, res) => {
@@ -151,6 +173,15 @@ exports.createRecyclingPoint = async (req, res) => {
   try {
     if (!ensureDb(res)) return;
 
+    const userRoles = normalizeRoles(req.user);
+    const isAdmin = userRoles.includes('admin');
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo un administrador puede crear puntos de reciclaje'
+      });
+    }
+
     const {
       name,
       description,
@@ -198,6 +229,9 @@ exports.createRecyclingPoint = async (req, res) => {
 
     return res.status(201).json({ success: true, message: 'Punto de reciclaje creado exitosamente', data: { recyclingPoint: { ...point, _id: point.id } } });
   } catch (error) {
+    if (error?.code === 'INVALID_ACCEPTED_MATERIALS') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('Error en createRecyclingPoint:', error);
     return res.status(500).json({ success: false, message: 'Error al crear punto de reciclaje', details: error.message });
   }
@@ -216,6 +250,9 @@ exports.updateRecyclingPoint = async (req, res) => {
     const updated = await prisma.recyclingPoint.update({ where: { id: pointId }, data });
     return res.json({ success: true, message: 'Punto actualizado', data: { recyclingPoint: { ...updated, _id: updated.id } } });
   } catch (error) {
+    if (error?.code === 'INVALID_ACCEPTED_MATERIALS') {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     if (error?.code === 'P2025') {
       return res.status(404).json({ success: false, message: 'Punto de reciclaje no encontrado' });
     }

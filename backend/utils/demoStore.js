@@ -16,6 +16,8 @@ const store = {
   usersByEmail: new Map(),
   pointsById: new Map(),
   submissionsById: new Map(),
+  ecoCoinLedgerById: new Map(),
+  ecoCoinLedgerIdsByUserId: new Map(),
 
   ensureUser({ id, email, username, country }) {
     const normalizedEmail = String(email || '').toLowerCase().trim();
@@ -57,13 +59,65 @@ const store = {
     return normalized;
   },
 
-  addEcoCoins(userId, amount) {
+  createEcoCoinLedgerEntry({ userId, delta, reason, transactionId, recyclingSubmissionId, metadata }) {
+    const entryId = randomId24();
+    const entry = {
+      id: entryId,
+      _id: entryId,
+      userId: String(userId),
+      delta: Number(delta) || 0,
+      reason: String(reason || 'adjustment'),
+      transactionId: transactionId ? String(transactionId) : undefined,
+      recyclingSubmissionId: recyclingSubmissionId ? String(recyclingSubmissionId) : undefined,
+      metadata: metadata && typeof metadata === 'object' ? metadata : undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.ecoCoinLedgerById.set(entryId, entry);
+    const uid = String(userId);
+    const ids = this.ecoCoinLedgerIdsByUserId.get(uid) || [];
+    ids.push(entryId);
+    this.ecoCoinLedgerIdsByUserId.set(uid, ids);
+    return entry;
+  },
+
+  listEcoCoinLedgerEntriesByUser(userId, { take = 200 } = {}) {
+    const uid = String(userId);
+    const ids = this.ecoCoinLedgerIdsByUserId.get(uid) || [];
+    const entries = ids
+      .map((id) => this.ecoCoinLedgerById.get(id))
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return entries.slice(0, Math.max(1, Number(take) || 200));
+  },
+
+  addEcoCoins(userId, amount, options = undefined) {
     const user = this.usersById.get(String(userId));
     if (!user) return null;
     const inc = Number(amount) || 0;
     user.ecoCoins = (Number(user.ecoCoins) || 0) + inc;
     user.sustainabilityScore = Math.min(100, Math.floor(user.ecoCoins / 10));
     this.setUser(user);
+
+    const opts = options && typeof options === 'object' ? options : null;
+    const shouldLedger = Boolean(
+      opts && (opts.reason || opts.transactionId || opts.recyclingSubmissionId || opts.metadata)
+    );
+
+    if (shouldLedger) {
+      this.createEcoCoinLedgerEntry({
+        userId: user.id,
+        delta: inc,
+        reason: opts.reason,
+        transactionId: opts.transactionId,
+        recyclingSubmissionId: opts.recyclingSubmissionId,
+        metadata: {
+          ...(opts.metadata || {}),
+          ecoCoinsBalanceAfter: user.ecoCoins,
+        },
+      });
+    }
+
     return user;
   },
 

@@ -1,5 +1,10 @@
 const jwt = require('jsonwebtoken');
 
+const isDemoMode = String(process.env.DEMO_MODE || '').toLowerCase() === 'true';
+if (!isDemoMode) {
+  throw new Error('authMiddleware_demo.js cargado con DEMO_MODE=false. Esto no debe ocurrir fuera de DEMO_MODE.');
+}
+
 /**
  * Middleware de autenticación simplificado para demo
  */
@@ -22,7 +27,8 @@ const authenticate = async (req, res, next) => {
     req.user = {
       id: decoded.userId,
       email: decoded.email,
-      username: decoded.username || 'demo_user'
+      username: decoded.username || 'demo_user',
+      roles: Array.isArray(decoded.roles) ? decoded.roles : []
     };
     
     next();
@@ -59,7 +65,8 @@ const optionalAuth = async (req, res, next) => {
       req.user = {
         id: decoded.userId,
         email: decoded.email,
-        username: decoded.username || 'demo_user'
+        username: decoded.username || 'demo_user',
+        roles: Array.isArray(decoded.roles) ? decoded.roles : []
       };
     }
     
@@ -70,8 +77,17 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware RBAC por permiso (demo): no restringe.
+ * En DEMO_MODE la seguridad real la aplican los controllers/mocks de test.
+ */
+const requirePermission = (_permission) => {
+  return (_req, _res, next) => next();
+};
+
 module.exports = {
   authenticate,
   authorize,
-  optionalAuth
+  optionalAuth,
+  requirePermission,
 };

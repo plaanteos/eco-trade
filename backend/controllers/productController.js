@@ -1,82 +1,48 @@
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
-const crypto = require('crypto');
+const demoProductsStore = require('../utils/demoProductsStore');
+const { normalizeRoles } = require('../utils/rbac');
 
-function randomId24() {
-  return crypto.randomBytes(12).toString('hex');
+function sanitizeProductForPublic(product) {
+  if (!product || typeof product !== 'object') return product;
+
+  // Clonar superficialmente y remover campos potencialmente sensibles.
+  const out = { ...product };
+
+  // Evitar IDs/atributos internos del store demo.
+  delete out.owner;
+
+  // Si por error se incluye un usuario poblado, no exponer PII.
+  if (out.seller && typeof out.seller === 'object') {
+    out.seller = { id: out.seller.id || out.seller._id, username: out.seller.username };
+  }
+  if (out.user && typeof out.user === 'object') {
+    out.user = { id: out.user.id || out.user._id, username: out.user.username };
+  }
+
+  // Blindaje extra: eliminar claves típicas de PII/credenciales si aparecieran por cambios futuros.
+  for (const key of Object.keys(out)) {
+    const k = String(key).toLowerCase();
+    if (
+      k.includes('password') ||
+      k === 'email' ||
+      k.includes('recyclingcode') ||
+      k === 'roles' ||
+      k === 'ecocoins'
+    ) {
+      delete out[key];
+    }
+  }
+
+  return out;
 }
 
-// Datos de demostración para cuando no hay base de datos
-const demoProducts = [
-  {
-    _id: randomId24(),
-    name: "iPhone 12 Pro",
-    description: "iPhone 12 Pro en excelente estado, usado por 1 año. Incluye cargador y auriculares.",
-    price: 45000,
-    category: "Electrónicos",
-    condition: "Muy bueno",
-    locationText: "CDMX, México",
-    owner: "demo_user",
-    sellerId: randomId24(),
-    status: "available",
-    createdAt: new Date()
-  },
-  {
-    _id: randomId24(),
-    name: "Laptop Dell Inspiron",
-    description: "Laptop Dell en buen estado, ideal para trabajo y estudio. 8GB RAM, SSD 256GB.",
-    price: 32000,
-    category: "Electrónicos",
-    condition: "Bueno",
-    locationText: "Guadalajara, México",
-    owner: "demo_user",
-    sellerId: randomId24(),
-    status: "available",
-    createdAt: new Date()
-  },
-  {
-    _id: randomId24(),
-    name: "Bicicleta de montaña",
-    description: "Bicicleta Trek en excelente estado, perfecta para aventuras al aire libre.",
-    price: 15000,
-    category: "Deportes",
-    condition: "Excelente",
-    locationText: "Monterrey, México",
-    owner: "demo_user",
-    sellerId: randomId24(),
-    status: "available",
-    createdAt: new Date()
-  },
-  {
-    _id: randomId24(),
-    name: "Sofá 3 plazas",
-    description: "Sofá cómodo y en buen estado, color gris. Ideal para sala de estar.",
-    price: 8500,
-    category: "Hogar",
-    condition: "Bueno",
-    locationText: "Puebla, México",
-    owner: "demo_user",
-    sellerId: randomId24(),
-    status: "available",
-    createdAt: new Date()
-  },
-  {
-    _id: randomId24(),
-    name: "Libros de programación",
-    description: "Colección de 5 libros sobre desarrollo web y JavaScript. Excelente para estudiantes.",
-    price: 1200,
-    category: "Libros",
-    condition: "Muy bueno",
-    locationText: "CDMX, México",
-    owner: "demo_user",
-    sellerId: randomId24(),
-    status: "available",
-    createdAt: new Date()
-  }
-];
-
-// Variable global para productos temporales (simulando base de datos)
-let tempProducts = [...demoProducts];
+function isOwnerOrAdmin(req, sellerId) {
+  const roles = normalizeRoles(req.user);
+  const isAdmin = roles.includes('admin');
+  if (isAdmin) return true;
+  return String(sellerId) === String(req.userId || req.user?.id);
+}
 
 // Función para verificar si MongoDB está disponible
 const isMongoAvailable = () => {
@@ -86,21 +52,30 @@ const isMongoAvailable = () => {
 // Controlador base para productos
 exports.getAllProducts = async (req, res) => {
   try {
+    const { page, limit } = req.query || {};
+    const hasPaginationParams = page !== undefined || limit !== undefined;
+    const take = hasPaginationParams ? Math.min(100, Math.max(1, Number(limit) || 20)) : null;
+    const p = Math.max(1, Number(page) || 1);
+    const skip = take ? (p - 1) * take : 0;
+
     if (isMongoAvailable()) {
       const prisma = getPrisma();
       const products = await prisma.product.findMany({
         orderBy: { createdAt: 'desc' },
+        ...(take ? { skip, take } : {}),
       });
 
       // Compatibilidad: el endpoint histórico devolvía array plano
-      res.json(products.map((p) => ({ ...p, _id: p.id })));
-    } else {
-      // Usar datos de demostración
-      res.json(tempProducts);
+      return res.json(products.map((p) => sanitizeProductForPublic({ ...p, _id: p.id })));
     }
+
+    // Usar datos de demostración
+    const list = demoProductsStore.list();
+    const paged = take ? list.slice(skip, skip + take) : list;
+    return res.json(paged.map((p) => sanitizeProductForPublic(p)));
   } catch (err) {
     console.log('Usando datos de demostración:', err.message);
-    res.json(tempProducts);
+    return res.json(demoProductsStore.list().map((p) => sanitizeProductForPublic(p)));
   }
 };
 
@@ -139,26 +114,23 @@ exports.createProduct = async (req, res) => {
     };
 
     let product;
-    
+
     if (isMongoAvailable()) {
       const prisma = getPrisma();
       product = await prisma.product.create({ data: productData });
       product = { ...product, _id: product.id };
     } else {
       // Usar datos temporales
-      product = { _id: randomId24(), ...productData, createdAt: new Date() };
-      tempProducts.unshift(product); // Agregar al inicio del array
+      product = demoProductsStore.create(productData);
     }
-
-    // Calcular EcoCoins ganados (1 EcoCoin por cada 10 unidades de precio)
-    const ecoCoinsEarned = Math.floor(price / 10);
 
     res.status(201).json({
       success: true,
-      message: `¡Producto creado exitosamente! Ganaste ${ecoCoinsEarned} EcoCoins.`,
+      message: '¡Producto creado exitosamente!',
       data: {
         product: product,
-        ecoCoinsEarned: ecoCoinsEarned
+        // Compatibilidad: el frontend leía este campo, pero publicar no acredita ecoCoins.
+        ecoCoinsEarned: 0
       }
     });
   } catch (err) {
@@ -198,10 +170,10 @@ exports.searchProducts = async (req, res) => {
       }
 
       products = await prisma.product.findMany({ where, orderBy: { createdAt: 'desc' } });
-      products = products.map((p) => ({ ...p, _id: p.id }));
+      products = products.map((p) => sanitizeProductForPublic({ ...p, _id: p.id }));
     } else {
-      // Usar datos temporales con filtros
-      products = tempProducts.filter(product => {
+      // Usar datos de demostración con filtros
+      products = demoProductsStore.list().filter(product => {
         let matches = true;
         
         if (search) {
@@ -233,6 +205,8 @@ exports.searchProducts = async (req, res) => {
       
       // Ordenar por fecha de creación (más recientes primero)
       products.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      products = products.map((p) => sanitizeProductForPublic(p));
     }
     
     res.json({
@@ -245,10 +219,11 @@ exports.searchProducts = async (req, res) => {
   } catch (error) {
     console.error('Error en searchProducts:', error);
     // Fallback a datos de demo en caso de error
+    const demoProducts = demoProductsStore.list();
     res.json({
       success: true,
       data: {
-        products: demoProducts,
+        products: demoProducts.map((p) => sanitizeProductForPublic(p)),
         total: demoProducts.length
       }
     });
@@ -259,11 +234,11 @@ exports.searchProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
   try {
     if (!isMongoAvailable()) {
-      const p = tempProducts.find((x) => String(x._id) === String(req.params.id));
+      const p = demoProductsStore.getById(req.params.id);
       if (!p) {
         return res.status(404).json({ success: false, message: 'Producto no encontrado' });
       }
-      return res.json({ success: true, data: { product: p } });
+      return res.json({ success: true, data: { product: sanitizeProductForPublic(p) } });
     }
 
     const prisma = getPrisma();
@@ -278,7 +253,7 @@ exports.getProductById = async (req, res) => {
     
     res.json({
       success: true,
-      data: { product }
+      data: { product: sanitizeProductForPublic(product) }
     });
   } catch (error) {
     console.error('Error en getProductById:', error);
@@ -303,15 +278,32 @@ exports.updateProduct = async (req, res) => {
     if (location) updateData.locationText = location;
     
     if (!isMongoAvailable()) {
-      const idx = tempProducts.findIndex((x) => String(x._id) === String(req.params.id));
-      if (idx === -1) {
+      const existing = demoProductsStore.getById(req.params.id);
+      if (!existing) {
         return res.status(404).json({ success: false, message: 'Producto no encontrado' });
       }
-      tempProducts[idx] = { ...tempProducts[idx], ...updateData };
-      return res.json({ success: true, data: { product: tempProducts[idx] } });
+      if (!isOwnerOrAdmin(req, existing.sellerId)) {
+        return res.status(403).json({ success: false, message: 'No autorizado para editar este producto' });
+      }
+      const updated = demoProductsStore.update(req.params.id, updateData);
+      return res.json({ success: true, data: { product: updated } });
     }
 
     const prisma = getPrisma();
+    const existing = await prisma.product.findUnique({
+      where: { id: String(req.params.id) },
+      select: { id: true, sellerId: true },
+    });
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado'
+      });
+    }
+    if (!isOwnerOrAdmin(req, existing.sellerId)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para editar este producto' });
+    }
+
     const product = await prisma.product.update({
       where: { id: String(req.params.id) },
       data: updateData,
@@ -341,15 +333,35 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   try {
     if (!isMongoAvailable()) {
-      const before = tempProducts.length;
-      tempProducts = tempProducts.filter((x) => String(x._id) !== String(req.params.id));
-      if (tempProducts.length === before) {
+      const existing = demoProductsStore.getById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+      }
+      if (!isOwnerOrAdmin(req, existing.sellerId)) {
+        return res.status(403).json({ success: false, message: 'No autorizado para eliminar este producto' });
+      }
+      const removed = demoProductsStore.remove(req.params.id);
+      if (!removed) {
         return res.status(404).json({ success: false, message: 'Producto no encontrado' });
       }
       return res.json({ success: true, message: 'Producto eliminado exitosamente' });
     }
 
     const prisma = getPrisma();
+    const existing = await prisma.product.findUnique({
+      where: { id: String(req.params.id) },
+      select: { id: true, sellerId: true },
+    });
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado'
+      });
+    }
+    if (!isOwnerOrAdmin(req, existing.sellerId)) {
+      return res.status(403).json({ success: false, message: 'No autorizado para eliminar este producto' });
+    }
+
     const product = await prisma.product.delete({ where: { id: String(req.params.id) } });
     
     if (!product) {
@@ -386,7 +398,7 @@ exports.getMyProducts = async (req, res) => {
       });
       products = products.map((p) => ({ ...p, _id: p.id }));
     } else {
-      products = tempProducts
+      products = demoProductsStore.list()
         .filter((p) => (p.sellerId ? String(p.sellerId) === String(userId) : p.owner === userId))
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
@@ -416,7 +428,7 @@ exports.showInterest = async (req, res) => {
       product = await prisma.product.findUnique({ where: { id: String(req.params.id) } });
       if (product) product = { ...product, _id: product.id };
     } else {
-      product = tempProducts.find((x) => String(x._id) === String(req.params.id));
+      product = demoProductsStore.getById(req.params.id);
     }
     
     if (!product) {
@@ -429,7 +441,7 @@ exports.showInterest = async (req, res) => {
     res.json({
       success: true,
       message: 'Interés registrado exitosamente',
-      data: { product }
+      data: { product: sanitizeProductForPublic(product) }
     });
   } catch (error) {
     console.error('Error en showInterest:', error);

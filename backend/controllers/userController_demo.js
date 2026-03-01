@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 const { store } = require('../utils/demoStore');
 
+const isDemoMode = String(process.env.DEMO_MODE || '').toLowerCase() === 'true';
+if (!isDemoMode) {
+  throw new Error('userController_demo.js cargado con DEMO_MODE=false. Esto no debe ocurrir fuera de DEMO_MODE.');
+}
+
 // Mantener compatibilidad: si no llega username, se deriva del email.
 
 /**
@@ -39,9 +44,13 @@ exports.register = async (req, res) => {
       country
     });
 
+    const roles = String(demoUser.email || '').toLowerCase().startsWith('admin')
+      ? ['admin']
+      : ['user'];
+
     // Simulación temporal sin base de datos
     const token = jwt.sign(
-      { userId: demoUser.id, email: demoUser.email, username: demoUser.username, country: demoUser.country },
+      { userId: demoUser.id, email: demoUser.email, username: demoUser.username, country: demoUser.country, roles },
       process.env.JWT_SECRET || 'default_secret',
       { expiresIn: '1h' }
     );
@@ -60,6 +69,7 @@ exports.register = async (req, res) => {
           country: demoUser.country,
           accountType: demoUser.accountType,
           recyclingCode: demoUser.recyclingCode,
+          roles,
           currency: userCurrency,
           ecoCoins: demoUser.ecoCoins,
           sustainabilityScore: demoUser.sustainabilityScore,
@@ -100,9 +110,13 @@ exports.login = async (req, res) => {
       country: 'MX'
     });
 
+    const roles = String(demoUser.email || '').toLowerCase().startsWith('admin')
+      ? ['admin']
+      : ['user'];
+
     // Simulación temporal sin base de datos
     const token = jwt.sign(
-      { userId: demoUser.id, email: demoUser.email, username: demoUser.username, country: demoUser.country },
+      { userId: demoUser.id, email: demoUser.email, username: demoUser.username, country: demoUser.country, roles },
       process.env.JWT_SECRET || 'default_secret',
       { expiresIn: '1h' }
     );
@@ -120,6 +134,7 @@ exports.login = async (req, res) => {
           country: demoUser.country,
           accountType: demoUser.accountType,
           recyclingCode: demoUser.recyclingCode,
+          roles,
           currency: { currency: 'MXN', symbol: '$', name: 'México' },
           ecoCoins: demoUser.ecoCoins,
           sustainabilityScore: demoUser.sustainabilityScore,
@@ -355,18 +370,53 @@ exports.becomeSeller = async (req, res) => {
 // Historial de ecoCoins (modo demo)
 exports.getEcoCoinsHistory = async (req, res) => {
   const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });
+
+  const entries = store.listEcoCoinLedgerEntriesByUser(demoUser.id, { take: 200 });
+  const history = entries.map((e) => {
+    const isRecycling = Boolean(e.recyclingSubmissionId);
+    const isTx = Boolean(e.transactionId);
+    const reason = String(e.reason || '');
+
+    let type = 'adjustment';
+    if (isRecycling) type = 'recycling_submission';
+    else if (isTx && reason.includes('ecocoins')) type = 'ecoCoins_payment';
+    else if (isTx) type = 'transaction_reward';
+
+    const reference = e.metadata?.productName
+      || e.metadata?.submissionCode
+      || e.transactionId
+      || e.recyclingSubmissionId
+      || 'demo';
+
+    return {
+      type,
+      id: e.id,
+      at: e.createdAt,
+      ecoCoinsDelta: Number(e.delta) || 0,
+      reference,
+      metadata: {
+        ...(e.metadata || {}),
+        transactionId: e.transactionId,
+        recyclingSubmissionId: e.recyclingSubmissionId,
+        reason: e.reason,
+      },
+    };
+  });
+
   return res.json({
     success: true,
     data: {
-      history: [
-        {
-          type: 'demo',
-          at: new Date().toISOString(),
-          ecoCoinsDelta: 0,
-          reference: 'demo',
-          metadata: { ecoCoinsBalance: demoUser.ecoCoins },
-        },
-      ],
+      history: history.length > 0
+        ? history
+        : [
+            {
+              type: 'demo',
+              at: new Date().toISOString(),
+              ecoCoinsDelta: 0,
+              reference: 'demo',
+              metadata: { ecoCoinsBalance: demoUser.ecoCoins },
+            },
+          ],
     },
   });
 };

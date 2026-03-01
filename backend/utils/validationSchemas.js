@@ -1,5 +1,11 @@
 const Joi = require('joi');
 
+// Compatibilidad con distintos formatos de IDs:
+// - Prisma por defecto: cuid() (ej: cxxxxxxxxxxxxxxxxxxxxxxxx)
+// - UUID (v1-v5)
+// - Legacy/demo: Mongo ObjectId (24-hex)
+const ID_REGEX = /^(?:[0-9a-fA-F]{24}|c[a-z0-9]{24,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$/;
+
 class ValidationSchemas {
   // Esquema de validación para registro de usuario
   static userRegister = Joi.object({
@@ -171,17 +177,25 @@ class ValidationSchemas {
 
   // Esquema de validación para transacciones
   static transactionCreate = Joi.object({
-    productId: Joi.string()
-      .pattern(/^[0-9a-fA-F]{24}$/)
-      .required()
+    product: Joi.string()
+      .trim()
+      .pattern(ID_REGEX)
       .messages({
         'string.pattern.base': 'ID de producto inválido'
       }),
-    paymentMethod: Joi.string()
-      .valid('Efectivo', 'Transferencia', 'MercadoPago', 'EcoCoins', 'Mixto')
-      .required(),
+    // Compatibilidad legacy: algunos clientes pueden enviar productId
+    productId: Joi.string()
+      .trim()
+      .pattern(ID_REGEX)
+      .messages({
+        'string.pattern.base': 'ID de producto inválido'
+      }),
+    paymentMethod: Joi.string().trim().min(1).max(50).required(),
+    // Compatibilidad/antifraude: el controller valida el monto requerido si se envía.
+    ecoCoinsAmount: Joi.number().min(0).optional(),
     paymentDetails: Joi.object({
       ecoCoinsUsed: Joi.number().min(0).default(0),
+      ecoCoinsAmount: Joi.number().min(0).optional(),
       cashAmount: Joi.number().min(0).default(0),
       digitalAmount: Joi.number().min(0).default(0),
       transactionId: Joi.string().optional()
@@ -194,7 +208,14 @@ class ValidationSchemas {
       estimatedDate: Joi.date().min('now').optional()
     }).optional(),
     message: Joi.string().max(500).optional()
-  });
+  })
+    .or('product', 'productId')
+    .custom((value) => {
+      if (!value.product && value.productId) {
+        return { ...value, product: value.productId };
+      }
+      return value;
+    }, 'Mapear productId → product');
 
   // Esquema para búsqueda de productos
   static productSearch = Joi.object({
@@ -221,7 +242,8 @@ class ValidationSchemas {
   // Esquema para calificaciones
   static rating = Joi.object({
     transactionId: Joi.string()
-      .pattern(/^[0-9a-fA-F]{24}$/)
+      .trim()
+      .pattern(ID_REGEX)
       .required()
       .messages({
         'string.pattern.base': 'ID de transacción inválido'
@@ -243,7 +265,8 @@ class ValidationSchemas {
   // Esquema para mensajes en transacciones
   static transactionMessage = Joi.object({
     transactionId: Joi.string()
-      .pattern(/^[0-9a-fA-F]{24}$/)
+      .trim()
+      .pattern(ID_REGEX)
       .required()
       .messages({
         'string.pattern.base': 'ID de transacción inválido'
@@ -329,7 +352,7 @@ class ValidationSchemas {
         }));
         
         return res.status(400).json({
-          status: 'error',
+          success: false,
           message: 'Error de validación',
           errors: errorDetails
         });
@@ -356,7 +379,7 @@ class ValidationSchemas {
         }));
         
         return res.status(400).json({
-          status: 'error',
+          success: false,
           message: 'Error de validación en parámetros',
           errors: errorDetails
         });

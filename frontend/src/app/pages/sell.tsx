@@ -9,7 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Package, Coins, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Package, Coins, AlertCircle, CheckCircle2, Leaf } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIES = [
@@ -37,7 +37,6 @@ export function SellPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [ecoCoinsEarned, setEcoCoinsEarned] = useState(0);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -121,11 +120,7 @@ export function SellPage() {
 
       if (response.success) {
         setSuccess(true);
-        setEcoCoinsEarned(response.data?.ecoCoinsEarned || 0);
         toast.success('¡Producto publicado exitosamente!');
-        
-        // Refresh user profile to update ecoCoins
-        await refreshProfile();
 
         // Reset form
         setTimeout(() => {
@@ -164,8 +159,7 @@ export function SellPage() {
         <Alert className="bg-green-50 border-green-200">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            ¡Producto publicado exitosamente! Has ganado{' '}
-            <strong>{ecoCoinsEarned} EcoCoins</strong>.
+            ¡Producto publicado exitosamente!
           </AlertDescription>
         </Alert>
       )}
@@ -286,13 +280,13 @@ export function SellPage() {
                 </div>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span>EcoCoins al publicar:</span>
+                    <span>EcoCoins al vender:</span>
                     <strong>{estimatedEcoCoins}</strong>
                   </div>
                   <div className="flex items-start gap-2 text-green-700">
                     <Leaf className="w-4 h-4 mt-0.5 shrink-0" />
                     <span>
-                      Recibirás EcoCoins adicionales cuando vendas el producto
+                      Recibirás EcoCoins cuando se complete la transacción
                     </span>
                   </div>
                 </div>

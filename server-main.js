@@ -18,6 +18,11 @@ const PORT = process.env.PORT || 5000;
 const nodeEnv = (process.env.NODE_ENV || 'development').toLowerCase();
 const isDemoMode = String(process.env.DEMO_MODE || '').toLowerCase() === 'true';
 
+// Fail-fast también en entornos serverless donde startServer() no se ejecuta.
+if (nodeEnv === 'production' && isDemoMode) {
+  throw new Error('DEMO_MODE=true no está permitido en producción');
+}
+
 // Middlewares base (siempre, incluso cuando el módulo se importa en tests)
 app.disable('x-powered-by');
 app.set('trust proxy', 1);

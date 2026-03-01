@@ -226,3 +226,29 @@ model RecyclingSubmission {
   @@index([userId])
   @@index([createdAt])
 }
+
+model EcoCoinLedger {
+  id                    String             @id @default(cuid())
+
+  userId                String
+  user                  User               @relation(fields: [userId], references: [id])
+
+  delta                 Int
+  reason                String
+
+  transactionId         String?
+  transaction           Transaction?       @relation(fields: [transactionId], references: [id])
+
+  recyclingSubmissionId String?
+  recyclingSubmission   RecyclingSubmission? @relation(fields: [recyclingSubmissionId], references: [id])
+
+  metadata              Json?
+  createdAt             DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([transactionId])
+  @@index([recyclingSubmissionId])
+
+  @@unique([userId, reason, transactionId])
+  @@unique([userId, reason, recyclingSubmissionId])
+}

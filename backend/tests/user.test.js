@@ -25,6 +25,32 @@ describe('Users API (demo mode)', () => {
     expect(profileRes.body.data?.user).toBeTruthy();
   });
 
+  it('P0: GET /api/users/stats devuelve shape esperado por frontend', async () => {
+    const loginRes = await request(app)
+      .post('/api/users/login')
+      .send({ email: 'demo@ecotrade.com', password: 'demo1234' });
+
+    expect(loginRes.statusCode).toBe(200);
+    expect(loginRes.body.success).toBe(true);
+    expect(loginRes.body.data?.token).toBeTruthy();
+
+    const token = loginRes.body.data.token;
+
+    const statsRes = await request(app)
+      .get('/api/users/stats')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(statsRes.statusCode).toBe(200);
+    expect(statsRes.body.success).toBe(true);
+
+    const data = statsRes.body.data;
+    expect(data).toBeTruthy();
+    expect(typeof data.ecoCoins).toBe('number');
+    expect(typeof data.transactionsCount).toBe('number');
+    expect(typeof data.sustainabilityScore).toBe('number');
+    expect(typeof data.monthlyGrowth).toBe('number');
+  });
+
   it('debe listar usuarios (ruta admin en demo)', async () => {
     const loginRes = await request(app)
       .post('/api/users/login')

@@ -47,6 +47,34 @@ Opciones típicas:
 
 Nota: el backend devuelve un error claro si faltan tablas/relaciones.
 
+## 3.1) EcoCoins Ledger: backfill (una sola vez)
+
+Si vas a usar el historial basado en `EcoCoinLedger` (auditoría/contabilidad), después de aplicar el schema en la DB (con `db push` o migración) podés ejecutar un **backfill idempotente** que crea entradas para:
+
+- Transacciones (`Transaction`) con `ecoCoinsBuyer/ecoCoinsSeller`
+- Submissions de reciclaje (`RecyclingSubmission`) aprobadas con `rewards.totalEcoCoins`
+
+Comandos típicos (staging/producción):
+
+```bash
+# 1) Aplicar schema (crea la tabla EcoCoinLedger e índices)
+npx prisma db push
+
+# 2) Asegurar cliente Prisma actualizado
+npx prisma generate
+
+# 3) Ejecutar backfill (idempotente: se puede re-ejecutar)
+npm run ecocoins:backfill-ledger
+
+# (opcional) Solo simular inserciones
+npm run ecocoins:backfill-ledger -- --dry-run
+```
+
+Notas:
+
+- El script **no modifica** `User.ecoCoins` (solo crea entradas de ledger). Si necesitás reconciliar balances históricos, definimos una estrategia aparte.
+- El backfill usa `skipDuplicates` y constraints únicas; es seguro re-ejecutarlo.
+
 ## 4) Deploy en Vercel
 
 Este repo ya incluye configuración serverless en [api/index.js](api/index.js) + [vercel.json](vercel.json).

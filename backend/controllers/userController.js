@@ -734,19 +734,31 @@ exports.getStats = async (req, res) => {
       });
     }
 
-    const stats = {
+    // Frontend (EcoCoinsPage) espera que response.data tenga estos campos directos.
+    const payload = {
+      ecoCoins: user.ecoCoins,
+      transactionsCount: user.totalTransactions ?? 0,
+      sustainabilityScore: user.sustainabilityScore,
+      monthlyGrowth: 0,
+    };
+
+    // Mantener info adicional (legacy) sin romper al frontend.
+    const legacyStats = {
       ecoCoins: user.ecoCoins,
       sustainabilityScore: user.sustainabilityScore,
       rating: user.rating?.average ?? 0,
       totalRatings: user.rating?.count ?? 0,
       joinDate: user.createdAt,
       level: calculateUserLevel(user.sustainabilityScore),
-      totalTransactions: user.totalTransactions ?? 0
+      totalTransactions: user.totalTransactions ?? 0,
     };
 
     res.json({
       success: true,
-      data: { stats }
+      data: {
+        ...payload,
+        stats: legacyStats,
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -940,6 +952,102 @@ exports.getEcoCoinsHistory = async (req, res) => {
 
     const prisma = getPrisma();
     const userId = String(req.userId);
+
+    // Si existe el ledger y tiene datos, se usa como fuente de verdad.
+    // Fallback: mantener el historial derivado (submissions + ecoCoins txs) para no romper entornos sin migración/backfill.
+    if (typeof prisma.ecoCoinLedger?.findMany === 'function') {
+      const ledger = await prisma.ecoCoinLedger
+        .findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+          include: {
+            transaction: {
+              select: {
+                id: true,
+                createdAt: true,
+                paymentMethod: true,
+                ecoCoinsTotal: true,
+                buyerId: true,
+                sellerId: true,
+                product: { select: { id: true, name: true } },
+              },
+            },
+            recyclingSubmission: {
+              select: {
+                id: true,
+                submissionCode: true,
+                createdAt: true,
+                verificationStatus: true,
+                recyclingPoint: { select: { id: true, name: true, city: true } },
+              },
+            },
+          },
+        })
+        .catch(() => null);
+
+      if (Array.isArray(ledger) && ledger.length > 0) {
+        const rows = ledger.map((e) => {
+          const isRecycling = Boolean(e.recyclingSubmissionId || e.recyclingSubmission);
+          const isTx = Boolean(e.transactionId || e.transaction);
+
+          if (isRecycling) {
+            const s = e.recyclingSubmission;
+            return {
+              type: 'recycling_submission',
+              id: e.id,
+              at: e.createdAt,
+              ecoCoinsDelta: Number(e.delta) || 0,
+              status: s?.verificationStatus,
+              reference: s?.submissionCode || e.recyclingSubmissionId,
+              metadata: {
+                ...(e.metadata || {}),
+                recyclingPoint: s?.recyclingPoint ? { id: s.recyclingPoint.id, name: s.recyclingPoint.name, city: s.recyclingPoint.city } : null,
+                reason: e.reason,
+              },
+            };
+          }
+
+          if (isTx) {
+            const t = e.transaction;
+            const pm = String(t?.paymentMethod || '').toLowerCase();
+            const type = pm === 'ecocoins' ? 'ecoCoins_payment' : 'transaction_reward';
+            const isBuyer = t?.buyerId ? String(t.buyerId) === userId : undefined;
+            const role = e.metadata?.role || (isBuyer === true ? 'buyer' : isBuyer === false ? 'seller' : undefined);
+
+            return {
+              type,
+              id: e.id,
+              at: e.createdAt,
+              ecoCoinsDelta: Number(e.delta) || 0,
+              reference: t?.product?.name || e.transactionId || e.id,
+              metadata: {
+                ...(e.metadata || {}),
+                productId: t?.product?.id,
+                role,
+                ecoCoinsTotal: t?.ecoCoinsTotal,
+                transactionId: t?.id || e.transactionId,
+                reason: e.reason,
+              },
+            };
+          }
+
+          return {
+            type: 'adjustment',
+            id: e.id,
+            at: e.createdAt,
+            ecoCoinsDelta: Number(e.delta) || 0,
+            reference: e.id,
+            metadata: { ...(e.metadata || {}), reason: e.reason },
+          };
+        });
+
+        return res.json({
+          success: true,
+          data: { history: rows },
+        });
+      }
+    }
 
     const [submissions, ecoCoinTxs] = await Promise.all([
       prisma.recyclingSubmission.findMany({

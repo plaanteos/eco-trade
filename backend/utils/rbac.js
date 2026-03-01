@@ -39,6 +39,7 @@ const ROLE_PERMISSIONS = {
     'users:list',
     'users:manage',
     'recycling:point:manage:any',
+    'recycling:submission:verify',
   ],
 };
 

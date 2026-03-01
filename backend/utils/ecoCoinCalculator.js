@@ -3,6 +3,25 @@
  */
 
 class EcoCoinCalculator {
+
+  /**
+   * Cálculo base: 1 ecoCoin por cada 10 unidades.
+   * rounding: 'floor' (legacy) o 'ceil' (para evitar subpago por redondeo).
+   */
+  static calculateBaseEcoCoins(amount, rounding = 'floor') {
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    const fn = rounding === 'ceil' ? Math.ceil : Math.floor;
+    return Math.max(0, fn(n / 10));
+  }
+
+  /**
+   * Costo requerido en ecoCoins para pagar un producto.
+   * Usamos ceil para evitar subpago cuando el precio no es múltiplo de 10.
+   */
+  static calculateRequiredEcoCoinsForPayment(amount) {
+    return this.calculateBaseEcoCoins(amount, 'ceil');
+  }
   
   /**
    * Calcula ecoCoins para una transacción basándose en varios factores
@@ -20,8 +39,8 @@ class EcoCoinCalculator {
       discountPercentage = 0
     } = transactionData;
 
-    // Fórmula base: 1 ecoCoin por cada $10
-    const baseEcoCoins = Math.floor(amount / 10);
+    // Fórmula base: 1 ecoCoin por cada $10 (legacy)
+    const baseEcoCoins = this.calculateBaseEcoCoins(amount, 'floor');
 
     // Multiplicadores por categoría (productos más eco-friendly generan más ecoCoins)
     const categoryMultipliers = {

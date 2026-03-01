@@ -172,7 +172,28 @@ exports.getSubmissionByCode = async (req, res) => {
   if (!submission) {
     return res.status(404).json({ success: false, message: 'Submission no encontrada' });
   }
-  return res.json({ success: true, data: { submission } });
+
+  const tracking = submission.tracking && typeof submission.tracking === 'object' ? submission.tracking : {};
+  const history = Array.isArray(tracking.statusHistory)
+    ? tracking.statusHistory.map((h) => ({ status: h?.status, at: h?.timestamp })).filter((h) => h.status && h.at)
+    : [];
+  const point = store.getPoint(submission.recyclingPoint);
+
+  return res.json({
+    success: true,
+    data: {
+      submission: {
+        submissionCode: submission.submissionCode,
+        createdAt: submission.createdAt,
+        verificationStatus: submission.verification?.status,
+        recyclingPoint: point ? { name: point.name, city: point.city } : undefined,
+        tracking: {
+          currentStatus: tracking.currentStatus,
+          history,
+        },
+      },
+    },
+  });
 };
 
 exports.updateSubmissionStatus = async (req, res) => {
@@ -189,7 +210,7 @@ exports.updateSubmissionStatus = async (req, res) => {
 };
 
 exports.getPendingSubmissions = async (req, res) => {
-  const { recyclingPointId, status = 'pending', limit = 50 } = req.query || {};
+  const { recyclingPointId, status = 'pending', limit = 50, page = 1 } = req.query || {};
   if (!recyclingPointId) {
     return res.status(400).json({ success: false, message: 'recyclingPointId es obligatorio' });
   }
@@ -204,10 +225,16 @@ exports.getPendingSubmissions = async (req, res) => {
     return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede verificar' });
   }
 
-  const subs = store
+  const lim = Math.max(1, Number(limit) || 50);
+  const p = Math.max(1, Number(page) || 1);
+  const skip = (p - 1) * lim;
+
+  const all = store
     .listSubmissionsByPoint(recyclingPointId)
-    .filter((s) => String(s.verification?.status) === String(status))
-    .slice(0, Math.max(1, Number(limit) || 50))
+    .filter((s) => String(s.verification?.status) === String(status));
+
+  const subs = all
+    .slice(skip, skip + lim)
     .map((s) => {
       const u = store.usersById.get(String(s.user));
       const p = store.getPoint(String(s.recyclingPoint));
@@ -218,7 +245,15 @@ exports.getPendingSubmissions = async (req, res) => {
       };
     });
 
-  return res.json({ success: true, data: { submissions: subs, total: subs.length, statusFilter: status } });
+  return res.json({
+    success: true,
+    data: {
+      submissions: subs,
+      total: subs.length,
+      statusFilter: status,
+      pagination: { page: p, limit: lim, total: all.length, pages: Math.ceil(all.length / lim) || 1 },
+    },
+  });
 };
 
 exports.verifySubmission = async (req, res) => {
@@ -237,6 +272,21 @@ exports.verifySubmission = async (req, res) => {
 
   if (String(point.administrator) !== String(req.userId)) {
     return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede verificar' });
+  }
+
+  // Idempotencia: si ya fue verificada o ya se distribuyó la recompensa, no volver a acreditar.
+  const alreadyVerified = String(submission.verification?.status || 'pending') !== 'pending';
+  const alreadyDistributed = Boolean(submission.rewards?.rewardDistributed);
+  if (alreadyVerified || alreadyDistributed) {
+    return res.json({
+      success: true,
+      message: 'Submission ya verificada (idempotente)',
+      data: {
+        submission,
+        rewardDistributed: submission.rewards?.totalEcoCoins || 0,
+        environmentalImpact: {},
+      },
+    });
   }
 
   submission.verification.status = verificationStatus;
@@ -269,7 +319,14 @@ exports.verifySubmission = async (req, res) => {
     submission.rewards.rewardDistributed = true;
     submission.tracking.currentStatus = 'completed';
 
-    store.addEcoCoins(submission.user, totalEcoCoins);
+    store.addEcoCoins(submission.user, totalEcoCoins, {
+      reason: 'recycling:reward',
+      recyclingSubmissionId: submissionId,
+      metadata: {
+        submissionCode: submission.submissionCode,
+        recyclingPointId: submission.recyclingPoint,
+      },
+    });
   }
 
   if (verificationStatus === 'rejected') {

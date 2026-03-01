@@ -6,7 +6,7 @@ const userController = isDemoMode
 	? require('../controllers/userController_demo')
 	: require('../controllers/userController');
 
-const { authenticate, authorize } = isDemoMode
+const { authenticate, authorize, requirePermission } = isDemoMode
 	? require('../middleware/authMiddleware_demo')
 	: require('../middleware/authMiddleware');
 
@@ -31,6 +31,6 @@ router.post('/seller/activate', authenticate, userController.becomeSeller);
 router.post('/company/activate-seller', authenticate, userController.becomeCompanySeller);
 
 // Rutas de administrador
-router.get('/', authenticate, authorize('admin'), userController.getAllUsers);
+router.get('/', authenticate, requirePermission('users:list'), userController.getAllUsers);
 
 module.exports = router;
