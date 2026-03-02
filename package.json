@@ -20,7 +20,8 @@
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",
     "db:check": "node backend/scripts/dbCheck.js",
-    "ecocoins:backfill-ledger": "node backend/scripts/backfillEcoCoinLedger.js"
+    "ecocoins:backfill-ledger": "node backend/scripts/backfillEcoCoinLedger.js",
+    "bootstrap:superadmin": "node backend/scripts/bootstrapSuperAdmin.js"
   },
   "dependencies": {
     "@prisma/client": "^6.16.1",

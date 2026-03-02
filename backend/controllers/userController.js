@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
 const { getSupabaseAdmin } = require('../config/supabaseClient');
+const { hasPermission } = require('../utils/rbac');
 
 const COUNTRY_CURRENCIES = {
   AR: { currency: 'ARS', symbol: '$', name: 'Argentina' },
@@ -879,6 +880,12 @@ exports.becomeCompanySeller = async (req, res) => {
   try {
     if (!ensureDbOr503(res)) return;
 
+    // Opción A: convertirse en empresa no es auto-servicio.
+    // Solo un super_admin debe poder promover una cuenta a company.
+    if (!req.user || !hasPermission(req.user, 'users:manage')) {
+      return res.status(403).json({ success: false, message: 'Solo un super admin puede convertir cuentas a empresa' });
+    }
+
     const { companyProfile } = req.body || {};
     const prisma = getPrisma();
 
@@ -921,6 +928,97 @@ exports.becomeCompanySeller = async (req, res) => {
     });
   } catch (error) {
     console.error('Error en becomeCompanySeller:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Crear una cuenta empresa (Opción A) - solo super_admin.
+ * La empresa será admin de sus puntos y vendedora.
+ */
+exports.createCompanyAccount = async (req, res) => {
+  try {
+    if (!ensureDbOr503(res)) return;
+
+    if (!req.user || !hasPermission(req.user, 'users:manage')) {
+      return res.status(403).json({ success: false, message: 'Solo un super admin puede crear cuentas empresa' });
+    }
+
+    const { username, email, password, country, companyProfile } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: email, password' });
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    const prisma = getPrisma();
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const normalizedCountry = country ? String(country).toUpperCase().trim() : undefined;
+
+    const resolvedUsername = username
+      ? String(username).trim()
+      : await generateUniqueUsername(prisma, normalizedEmail.split('@')[0]);
+
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email: normalizedEmail }, { username: resolvedUsername }] },
+      select: { id: true },
+    });
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Email o nombre de usuario ya registrado' });
+    }
+
+    let recyclingCode = generateRecyclingCode();
+    for (let i = 0; i < 3; i++) {
+      const taken = await prisma.user.findUnique({ where: { recyclingCode }, select: { id: true } }).catch(() => null);
+      if (!taken) break;
+      recyclingCode = generateRecyclingCode();
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const ecoCoins = 50;
+    const sustainabilityScore = computeSustainabilityScore({ ecoCoins, totalTransactions: 0, ratingAverage: 0 });
+
+    const nextPreferences = {
+      onboardingCompleted: true,
+      ...(companyProfile ? { companyProfile } : {}),
+    };
+
+    const created = await prisma.user.create({
+      data: {
+        username: resolvedUsername,
+        email: normalizedEmail,
+        passwordHash,
+        accountType: 'company',
+        country: normalizedCountry,
+        recyclingCode,
+        ecoCoins,
+        sustainabilityScore,
+        roles: ['user', 'seller'],
+        isActive: true,
+        preferences: nextPreferences,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        accountType: true,
+        country: true,
+        roles: true,
+        ecoCoins: true,
+        sustainabilityScore: true,
+        preferences: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Cuenta empresa creada',
+      data: { user: { ...created, _id: created.id } },
+    });
+  } catch (error) {
+    console.error('Error en createCompanyAccount:', error);
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };

@@ -28,3 +28,12 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 # Bucket para imágenes (Storage → Buckets)
 SUPABASE_STORAGE_BUCKET=ecotrade.media
+
+# Bootstrap del primer super_admin (solo para inicialización)
+# Uso: npm run bootstrap:superadmin
+SUPER_ADMIN_EMAIL=admin@ecotrade.com
+SUPER_ADMIN_USERNAME=superadmin
+# Recomendado >= 12 caracteres
+SUPER_ADMIN_PASSWORD=cambia_esto_por_un_secreto_largo
+# Opcional (por defecto AR)
+SUPER_ADMIN_COUNTRY=AR

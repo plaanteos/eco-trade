@@ -346,6 +346,14 @@ exports.becomeCompanySeller = async (req, res) => {
   });
 };
 
+// Crear cuentas empresa (Opción A) - no aplica en DEMO_MODE.
+exports.createCompanyAccount = async (_req, res) => {
+  return res.status(501).json({
+    success: false,
+    message: 'Creación de cuentas empresa no está disponible en DEMO_MODE',
+  });
+};
+
 // Activar rol seller (modo demo)
 exports.becomeSeller = async (req, res) => {
   const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });

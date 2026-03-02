@@ -27,8 +27,11 @@ router.get('/ecocoins/history', authenticate, userController.getEcoCoinsHistory)
 // Activar rol seller (sin cambiar accountType)
 router.post('/seller/activate', authenticate, userController.becomeSeller);
 
-// Empresa vendedora (Opción B: usuario + rol seller)
-router.post('/company/activate-seller', authenticate, userController.becomeCompanySeller);
+// Convertir una cuenta a empresa (solo super_admin). Mantiene compatibilidad, pero NO es auto-servicio.
+router.post('/company/activate-seller', authenticate, requirePermission('users:manage'), userController.becomeCompanySeller);
+
+// Crear cuentas empresa (Opción A) - solo super_admin.
+router.post('/admin/companies', authenticate, requirePermission('users:manage'), userController.createCompanyAccount);
 
 // Rutas de administrador
 router.get('/', authenticate, requirePermission('users:list'), userController.getAllUsers);
