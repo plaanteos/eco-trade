@@ -1,5 +1,6 @@
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
+const { hasPermission } = require('../utils/rbac');
 
 function ensureDb(res) {
   if (!isConnected()) {
@@ -407,10 +408,11 @@ exports.verifySubmission = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
     }
 
-    // Permiso: admin del punto o operador asignado al punto
-    const staff = await isPointStaff(prisma, submission.recyclingPointId, req.userId);
-    if (!staff) {
-      return res.status(403).json({ success: false, message: 'Solo el staff del punto (admin u operador) puede verificar' });
+    // Arquitectura (Opción A): verificación la realiza el admin del punto (empresa) o el super_admin.
+    const isPlatformAdmin = req.user && hasPermission(req.user, 'recycling:point:manage:any');
+    const isPointAdmin = submission.recyclingPoint?.administratorId && String(submission.recyclingPoint.administratorId) === String(req.userId);
+    if (!isPlatformAdmin && !isPointAdmin) {
+      return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede verificar' });
     }
 
     let usedMaterials = null;
@@ -712,9 +714,10 @@ exports.getPendingSubmissions = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Punto de reciclaje no encontrado' });
     }
 
-    const staff = await isPointStaff(prisma, point.id, req.userId);
-    if (!staff) {
-      return res.status(403).json({ success: false, message: 'Solo el staff del punto (admin u operador) puede revisar pendientes' });
+    const isPlatformAdmin = req.user && hasPermission(req.user, 'recycling:point:manage:any');
+    const isPointAdmin = point.administratorId && String(point.administratorId) === String(req.userId);
+    if (!isPlatformAdmin && !isPointAdmin) {
+      return res.status(403).json({ success: false, message: 'Solo el administrador del punto puede revisar pendientes' });
     }
 
     const take = Math.min(200, Math.max(1, Number(limit) || 50));

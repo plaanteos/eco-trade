@@ -83,8 +83,8 @@ async function getRecyclingAccess(prisma, userId) {
   const userRoles = Array.isArray(userRecord?.roles) ? userRecord.roles.map(String) : [];
   const accountType = String(userRecord?.accountType || 'individual');
 
-  // Admin de plataforma o admin de reciclaje: acceso de admin aunque no tenga puntos aún.
-  const isPlatformAdmin = userRoles.includes('admin') || userRoles.includes('recycling_admin');
+  // Admin de plataforma (superusuario): NO confundir con recycling_admin (admin de punto/empresa).
+  const isPlatformAdmin = userRoles.includes('admin') || userRoles.includes('super_admin');
   // Cuenta empresa: administrador de puntos por definición de negocio.
   const isCompanyAccount = accountType === 'company';
   // Operador puro: creado por una empresa/admin, solo gestiona entregas.
@@ -95,8 +95,9 @@ async function getRecyclingAccess(prisma, userId) {
     ? Array.from(new Set(operatorMemberships.map((m) => m.pointId)))
     : [];
 
-  // isAdmin: tiene puntos asignados, O es empresa/admin global.
-  const isAdmin = adminPointIds.length > 0 || isPlatformAdmin || isCompanyAccount;
+  // isAdmin: administra puntos (tiene puntos) o es empresa (puede crear el primero) o es super admin.
+  // Nota: recycling_admin implica capacidad de administrar un punto (aunque todavía no exista en DB).
+  const isAdmin = adminPointIds.length > 0 || isCompanyAccount || isPlatformAdmin || userRoles.includes('recycling_admin');
   // isOperator: tiene membresías de operador Y no es ya admin.
   const isOperator = operatorPointIds.length > 0 && !isAdmin;
   // isStaff: agrupa a cualquier rol con responsabilidad operativa.
