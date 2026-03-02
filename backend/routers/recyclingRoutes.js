@@ -47,8 +47,24 @@ router.get('/points/:id', optionalAuth, recyclingPointController.getRecyclingPoi
 router.get('/points/:id/materials', optionalAuth, recyclingPointController.getAcceptedMaterials);
 router.get('/points/:id/stats', optionalAuth, recyclingPointController.getRecyclingPointStats);
 
+// Crear punto: permitido a recycling_admin (crea su propio punto) Y a admin global (puede asignarlo a otro).
+// recycling:point:create  → recycling_admin (empresa)
+// recycling:point:manage:any → admin global de plataforma
+function canCreateRecyclingPoint() {
+	return (req, res, next) => {
+		if (!req.user) {
+			return res.status(401).json({ success: false, message: 'Usuario no autenticado', code: 'NOT_AUTHENTICATED' });
+		}
+		const canCreate = hasPermission(req.user, 'recycling:point:create') || hasPermission(req.user, 'recycling:point:manage:any');
+		if (!canCreate) {
+			return res.status(403).json({ success: false, message: 'Se requiere cuenta empresa o admin para crear puntos de reciclaje', code: 'INSUFFICIENT_PERMISSIONS' });
+		}
+		next();
+	};
+}
+
 // Rutas administrativas (requieren autenticación)
-router.post('/points', authenticate, requirePermission('recycling:point:manage:any'), recyclingPointController.createRecyclingPoint);
+router.post('/points', authenticate, canCreateRecyclingPoint(), recyclingPointController.createRecyclingPoint);
 router.put('/points/:id', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.updateRecyclingPoint);
 router.delete('/points/:id', authenticate, loadRecyclingPoint('id'), allowPlatformAdminOrPointAdmin(), recyclingPointController.deleteRecyclingPoint);
 

@@ -131,7 +131,11 @@ export function RecyclingPage() {
   const isAdmin = Boolean(user?.recyclingAccess?.isAdmin);
   const isOperator = Boolean(user?.recyclingAccess?.isOperator);
   const isStaff = Boolean(user?.recyclingAccess?.isStaff);
-  const showOperatorTab = isAdmin || isOperator;
+  // Según arquitectura: el admin gestiona punto y operadores (tab Admin).
+  // El operador registra entregas (tab Operador).
+  // Un admin NO interactúa directamente con entregas → no ve tab Operador.
+  // isOperator (del backend) ya excluye a usuarios que son admin: operatorPointIds.length > 0 && !isAdmin
+  const showOperatorTab = isOperator;
   const showAdminTab = isAdmin;
 
   const defaultTab = showAdminTab ? 'admin' : showOperatorTab ? 'operator' : 'map';
