@@ -42,8 +42,13 @@ Antes de levantar en producción, aplica el esquema de Prisma a tu base de datos
 
 Opciones típicas:
 
-- Para entornos gestionados/CI: `npx prisma migrate deploy`
-- Para un despliegue inicial rápido (sin migraciones): `npx prisma db push`
+- Recomendado para producción/CI (con control de cambios): `npx prisma migrate deploy`
+- Alternativa (rápida, sin historial de migraciones): `npx prisma db push`
+
+🛡️ Importante: por seguridad, el build de Vercel en este repo **ya no ejecuta** `prisma db push` en producción por defecto.
+
+- Si querés habilitarlo explícitamente (no recomendado para producción), setea `PRISMA_DB_PUSH=true`.
+- Si `PRISMA_DB_PUSH` no está seteado, el schema NO se aplica automáticamente durante el build.
 
 Nota: el backend devuelve un error claro si faltan tablas/relaciones.
 
@@ -86,6 +91,21 @@ En Vercel configura Environment Variables:
 - `CORS_ORIGINS` (tu dominio de frontend)
 - `NODE_ENV=production`
 - `DEMO_MODE=false`
+
+Bootstrap inicial (una sola vez):
+
+- `SUPER_ADMIN_EMAIL`
+- `SUPER_ADMIN_USERNAME`
+- `SUPER_ADMIN_PASSWORD`
+- `SUPER_ADMIN_COUNTRY` (opcional)
+
+Luego ejecutar: `npm run bootstrap:superadmin` y, si querés, eliminar `SUPER_ADMIN_PASSWORD` del entorno.
+
+Si ya tenías usuarios `accountType=company` creados antes de agregar `Company/CompanyMember`, ejecuta una vez:
+
+- `npm run backfill:companies`
+
+Este script es idempotente: crea `Company` + membership owner faltantes, y asocia `RecyclingPoint`/`Product` a `companyId` cuando corresponde.
 
 Si usas Supabase Auth/Storage desde backend, agrega también:
 

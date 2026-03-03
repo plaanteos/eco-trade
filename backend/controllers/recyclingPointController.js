@@ -4,6 +4,27 @@ const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
 const { hasPermission, normalizeRoles } = require('../utils/rbac');
 
+function isMissingTableError(err) {
+  if (err?.code === 'P2021') return true;
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('does not exist') || (msg.includes('relation') && msg.includes('does not exist'));
+}
+
+async function safeGetPrimaryCompanyId(prisma, userId) {
+  try {
+    if (!userId) return null;
+    const membership = await prisma.companyMember.findFirst({
+      where: { userId: String(userId), status: 'active' },
+      select: { companyId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return membership?.companyId ? String(membership.companyId) : null;
+  } catch (err) {
+    if (isMissingTableError(err)) return null;
+    throw err;
+  }
+}
+
 async function addUserRole(prisma, userId, role) {
   if (!userId || !role) return;
   const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { roles: true } }).catch(() => null);
@@ -234,6 +255,27 @@ exports.createRecyclingPoint = async (req, res) => {
       }
     }
 
+    const ownerData = {};
+    // Si el admin del punto es una cuenta company, intentamos asociar el punto a su Company.
+    // Esto habilita multi-tenant sin romper compatibilidad si la migración aún no está aplicada.
+    try {
+      const adminUser = await prisma.user.findUnique({
+        where: { id: resolvedAdministratorId },
+        select: { id: true, accountType: true },
+      }).catch(() => null);
+
+      const isCompanyAdmin = String(adminUser?.accountType || '') === 'company';
+      if (isCompanyAdmin) {
+        const companyId = await safeGetPrimaryCompanyId(prisma, resolvedAdministratorId);
+        if (companyId) {
+          ownerData.ownerType = 'company';
+          ownerData.companyId = companyId;
+        }
+      }
+    } catch (e) {
+      console.warn('No se pudo asociar el punto a Company (continuando):', e?.code || e?.message);
+    }
+
     const point = await prisma.recyclingPoint.create({
       data: {
         name: String(name),
@@ -251,6 +293,7 @@ exports.createRecyclingPoint = async (req, res) => {
         certifications: certifications || undefined,
         status: status || 'active',
         administratorId: resolvedAdministratorId,
+        ...ownerData,
       },
     });
 

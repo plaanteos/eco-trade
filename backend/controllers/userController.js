@@ -873,6 +873,51 @@ function unionRoles(currentRoles, rolesToAdd) {
   return Array.from(set);
 }
 
+function isMissingTableError(err) {
+  const code = err?.code || err?.errorCode;
+  // Prisma: P2021 = table does not exist
+  if (code === 'P2021') return true;
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('does not exist') || msg.includes('relation') && msg.includes('does not exist');
+}
+
+async function safeEnsureCompanyForUser(prisma, user, companyProfile) {
+  try {
+    if (!user?.id) return null;
+
+    const existingMembership = await prisma.companyMember.findFirst({
+      where: { userId: String(user.id), status: 'active' },
+      select: { companyId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existingMembership?.companyId) return String(existingMembership.companyId);
+
+    const legalName = String(companyProfile?.legalName || companyProfile?.name || user.username || 'Empresa').trim();
+
+    const created = await prisma.company.create({
+      data: {
+        legalName,
+        country: user.country || undefined,
+        status: 'active',
+        profile: companyProfile || undefined,
+        members: {
+          create: {
+            userId: String(user.id),
+            role: 'owner',
+            status: 'active',
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    return String(created.id);
+  } catch (err) {
+    if (isMissingTableError(err)) return null;
+    throw err;
+  }
+}
+
 /**
  * Convertir cuenta a empresa vendedora (Opción B: mismo usuario + permisos extra)
  */
@@ -1012,10 +1057,19 @@ exports.createCompanyAccount = async (req, res) => {
       },
     });
 
+    // Crear entidad Company + membership owner si el schema ya fue aplicado.
+    // Si la tabla aún no existe (migración gradual), no fallar.
+    let companyId = null;
+    try {
+      companyId = await safeEnsureCompanyForUser(prisma, created, companyProfile);
+    } catch (err) {
+      console.warn('No se pudo crear Company/CompanyMember (continuando):', err?.code || err?.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Cuenta empresa creada',
-      data: { user: { ...created, _id: created.id } },
+      data: { user: { ...created, _id: created.id }, companyId },
     });
   } catch (error) {
     console.error('Error en createCompanyAccount:', error);

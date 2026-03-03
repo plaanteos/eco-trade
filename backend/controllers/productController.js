@@ -61,6 +61,27 @@ function requireDbOrDemo(res) {
   return null;
 }
 
+function isMissingTableError(err) {
+  if (err?.code === 'P2021') return true;
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('does not exist') || (msg.includes('relation') && msg.includes('does not exist'));
+}
+
+async function safeGetPrimaryCompanyId(prisma, userId) {
+  try {
+    if (!userId) return null;
+    const membership = await prisma.companyMember.findFirst({
+      where: { userId: String(userId), status: 'active' },
+      select: { companyId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return membership?.companyId ? String(membership.companyId) : null;
+  } catch (err) {
+    if (isMissingTableError(err)) return null;
+    throw err;
+  }
+}
+
 // Controlador base para productos
 exports.getAllProducts = async (req, res) => {
   try {
@@ -127,6 +148,9 @@ exports.createProduct = async (req, res) => {
       locationText: location || 'No especificada',
       status: 'available',
       sellerId: req.user?.id || null,
+      // Multi-tenant: si el usuario pertenece a una Company, asociar el producto.
+      // No rompe el flujo actual si Company aún no está desplegado.
+      companyId: null,
       images: [],
       tags: [],
     };
@@ -138,6 +162,13 @@ exports.createProduct = async (req, res) => {
 
     if (env.mode === 'db') {
       const prisma = getPrisma();
+
+      try {
+        productData.companyId = await safeGetPrimaryCompanyId(prisma, req.user?.id);
+      } catch (e) {
+        console.warn('No se pudo resolver companyId (continuando):', e?.code || e?.message);
+      }
+
       product = await prisma.product.create({ data: productData });
       product = { ...product, _id: product.id };
     } else {

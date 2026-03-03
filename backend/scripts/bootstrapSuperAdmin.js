@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const readline = require('node:readline');
 const { getPrisma } = require('../config/prismaClient');
 
 function requireEnv(name) {
@@ -18,14 +19,44 @@ function generateRecyclingCode() {
   return `ET-${ts}-${rnd}`;
 }
 
+function looksWeakPassword(value) {
+  const s = String(value || '');
+  const normalized = s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+
+  if (s.length < 16) return true;
+  const weakFragments = ['password', 'contrasena', '1234', 'qwerty', 'admin', 'ecotrade'];
+  if (weakFragments.some((x) => normalized.includes(x))) return true;
+
+  const hasUpper = /[A-Z]/.test(s);
+  const hasLower = /[a-z]/.test(s);
+  const hasDigit = /\d/.test(s);
+  const hasSymbol = /[^A-Za-z0-9]/.test(s);
+  const groups = [hasUpper, hasLower, hasDigit, hasSymbol].filter(Boolean).length;
+  return groups < 3;
+}
+
+async function promptSecret(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((resolve) => rl.question(question, resolve));
+  rl.close();
+  return String(answer || '');
+}
+
 async function main() {
   const email = requireEnv('SUPER_ADMIN_EMAIL').toLowerCase().trim();
   const username = requireEnv('SUPER_ADMIN_USERNAME').trim();
-  const password = requireEnv('SUPER_ADMIN_PASSWORD');
+  let password = process.env.SUPER_ADMIN_PASSWORD ? String(process.env.SUPER_ADMIN_PASSWORD) : '';
   const country = (process.env.SUPER_ADMIN_COUNTRY || process.env.DEFAULT_COUNTRY || 'AR').toUpperCase().trim();
 
-  if (password.length < 12) {
-    throw new Error('SUPER_ADMIN_PASSWORD debe tener al menos 12 caracteres');
+  if (!password) {
+    password = await promptSecret('SUPER_ADMIN_PASSWORD (no se muestra, recomendada >= 16 chars): ');
+  }
+
+  if (looksWeakPassword(password)) {
+    throw new Error('SUPER_ADMIN_PASSWORD es débil. Usá una contraseña de >=16 caracteres y evitá patrones comunes (password/contraseña/1234/etc.).');
   }
 
   const prisma = getPrisma();

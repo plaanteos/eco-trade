@@ -33,7 +33,8 @@ SUPABASE_STORAGE_BUCKET=ecotrade.media
 # Uso: npm run bootstrap:superadmin
 SUPER_ADMIN_EMAIL=admin@ecotrade.com
 SUPER_ADMIN_USERNAME=superadmin
-# Recomendado >= 12 caracteres
-SUPER_ADMIN_PASSWORD=cambia_esto_por_un_secreto_largo
+# Recomendado >= 16 caracteres (evitar patrones comunes)
+# Sugerencia: no lo guardes en archivo; configúralo como secreto del entorno
+SUPER_ADMIN_PASSWORD=
 # Opcional (por defecto AR)
 SUPER_ADMIN_COUNTRY=AR

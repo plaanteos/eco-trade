@@ -41,6 +41,38 @@ enum VerificationStatus {
   rejected
 }
 
+enum CompanyStatus {
+  active
+  suspended
+  closed
+}
+
+enum RecyclingPointOwnerType {
+  platform
+  company
+}
+
+enum EcoAccountOwnerType {
+  user
+  company
+  platform
+  escrow
+}
+
+enum EcoTxType {
+  mint
+  burn
+  transfer
+  purchase
+  refund
+  adjustment
+}
+
+enum EcoTxStatus {
+  posted
+  voided
+}
+
 model User {
   id                 String      @id @default(cuid())
   username           String      @unique
@@ -75,8 +107,48 @@ model User {
   pointMemberships   RecyclingPointOperator[]
   verifiedSubmissions RecyclingSubmission[] @relation("VerifiedBy")
   recyclingSubmissions RecyclingSubmission[] @relation("UserSubmissions")
+  registeredSubmissions RecyclingSubmission[] @relation("RegisteredBy")
+
+  createdEcoTransactionsV2 EcoCoinTransactionV2[] @relation("EcoTxCreatedBy")
 
   ecoCoinLedgerEntries EcoCoinLedger[]
+
+  companyMemberships  CompanyMember[]
+}
+
+model Company {
+  id        String        @id @default(cuid())
+  legalName String
+  country   String?
+  status    CompanyStatus @default(active)
+  profile   Json?
+
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  members   CompanyMember[]
+  products  Product[]
+  points    RecyclingPoint[]
+
+  @@index([status])
+  @@index([country])
+}
+
+model CompanyMember {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  role      String   @default("member")
+  status    String   @default("active")
+
+  company   Company  @relation(fields: [companyId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@index([companyId])
 }
 
 model Product {
@@ -104,6 +176,11 @@ model Product {
   sellerId        String?
   seller          User?         @relation("SellerProducts", fields: [sellerId], references: [id])
 
+  // Multi-tenant (recomendado): el producto pertenece a una empresa.
+  // Se deja opcional para compatibilidad con el modelo actual basado en sellerId.
+  companyId       String?
+  company         Company?      @relation(fields: [companyId], references: [id])
+
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -112,6 +189,7 @@ model Product {
   @@index([status])
   @@index([category])
   @@index([price])
+  @@index([companyId])
 }
 
 model Transaction {
@@ -174,6 +252,12 @@ model RecyclingPoint {
   certifications  Json?
   stats           Json?
 
+  // Ownership flexible (multi-tenant): punto puede ser de plataforma o de empresa.
+  ownerType       RecyclingPointOwnerType @default(platform)
+  companyId       String?
+  company         Company?            @relation(fields: [companyId], references: [id])
+
+  // Compatibilidad con el modelo actual (admin directo en User).
   administratorId String
   administrator   User                @relation("PointAdmin", fields: [administratorId], references: [id])
 
@@ -185,6 +269,8 @@ model RecyclingPoint {
 
   @@index([city])
   @@index([status])
+  @@index([ownerType])
+  @@index([companyId])
 }
 
 model RecyclingPointOperator {
@@ -214,6 +300,13 @@ model RecyclingSubmission {
   materials          Json
   submissionDetails  Json?
 
+  // Trazabilidad (opcional, recomendado): quién registró la entrega (operador)
+  registeredById     String?
+  registeredBy       User?              @relation("RegisteredBy", fields: [registeredById], references: [id])
+
+  // Idempotencia (opcional, recomendado): evita dobles registros por reintentos
+  idempotencyKey     String?
+
   verificationStatus VerificationStatus @default(pending)
   verifiedById       String?
   verifiedBy         User?              @relation("VerifiedBy", fields: [verifiedById], references: [id])
@@ -231,6 +324,8 @@ model RecyclingSubmission {
   @@index([recyclingPointId, verificationStatus])
   @@index([userId])
   @@index([createdAt])
+  @@index([registeredById])
+  @@unique([recyclingPointId, idempotencyKey])
 }
 
 model EcoCoinLedger {
@@ -257,4 +352,61 @@ model EcoCoinLedger {
 
   @@unique([userId, reason, transactionId])
   @@unique([userId, reason, recyclingSubmissionId])
+}
+
+// Ledger contable v2 (recomendado para producción). Append-only mediante EcoCoinEntry.
+// Se deja en paralelo para permitir migración gradual desde EcoCoinLedger.
+model EcoCoinAccount {
+  id        String             @id @default(cuid())
+  ownerType EcoAccountOwnerType
+  ownerId   String
+  currency  String             @default("ECO")
+  status    String             @default("active")
+  metadata  Json?
+
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  entries   EcoCoinEntry[]
+
+  @@unique([ownerType, ownerId, currency])
+  @@index([ownerType, ownerId])
+}
+
+model EcoCoinTransactionV2 {
+  id            String       @id @default(cuid())
+  type          EcoTxType
+  status        EcoTxStatus  @default(posted)
+
+  referenceType String?
+  referenceId   String?
+
+  idempotencyKey String?
+  createdByUserId String?
+  createdByUser   User?       @relation("EcoTxCreatedBy", fields: [createdByUserId], references: [id])
+
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+
+  entries       EcoCoinEntry[]
+
+  @@index([type, createdAt])
+  @@index([referenceType, referenceId])
+  @@unique([idempotencyKey])
+}
+
+model EcoCoinEntry {
+  id            String              @id @default(cuid())
+  transactionId String
+  accountId     String
+  direction     String
+  amount        Int
+  metadata      Json?
+  createdAt     DateTime            @default(now())
+
+  transaction   EcoCoinTransactionV2 @relation(fields: [transactionId], references: [id])
+  account       EcoCoinAccount      @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
+  @@index([transactionId])
 }
