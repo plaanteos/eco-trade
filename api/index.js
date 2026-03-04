@@ -32,9 +32,15 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (!isConnected()) {
-      connectPromise ||= connectDB();
-      await connectPromise;
+    const url = String(req?.url || '');
+    const isHealthRoute = url.startsWith('/api/health') || url.startsWith('/health');
+
+    // Health routes deben responder incluso si la DB está caída.
+    if (!isHealthRoute) {
+      if (!isConnected()) {
+        connectPromise ||= connectDB();
+        await connectPromise;
+      }
     }
 
     return app(req, res);

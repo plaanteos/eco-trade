@@ -86,6 +86,43 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Healthcheck DB explícito (útil en Vercel): intenta conectar y reporta diagnóstico seguro.
+app.get('/api/health/db', async (_req, res) => {
+  const isVercel = String(process.env.VERCEL || '').toLowerCase() === '1'
+    || String(process.env.VERCEL || '').toLowerCase() === 'true';
+  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+
+  const missing = [];
+  if (!process.env.DATABASE_URL) missing.push('DATABASE_URL');
+  if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
+  if (!process.env.CORS_ORIGINS) missing.push('CORS_ORIGINS');
+
+  try {
+    await connectDB();
+    return res.json({
+      status: 'ok',
+      env: nodeEnv,
+      vercel: isVercel,
+      production: isProd,
+      demoMode: isDemoMode,
+      missing,
+      db: 'connected',
+      uptime: process.uptime(),
+    });
+  } catch (error) {
+    return res.status(503).json({
+      status: 'error',
+      env: nodeEnv,
+      vercel: isVercel,
+      production: isProd,
+      demoMode: isDemoMode,
+      missing,
+      db: 'disconnected',
+      error: String(error?.message || 'Unknown error'),
+    });
+  }
+});
+
 // Rutas
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
