@@ -383,7 +383,7 @@ class ApiClient {
 
   async createPointOperator(
     pointId: string,
-    payload: { username: string; email: string; password: string }
+    payload: { username?: string; email?: string; password?: string; userId?: string }
   ) {
     return this.request<ApiResponse>(`/recycling/points/${pointId}/operators`, {
       method: 'POST',

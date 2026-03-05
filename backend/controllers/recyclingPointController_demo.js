@@ -151,15 +151,27 @@ exports.listPointOperators = async (req, res) => {
 
 exports.createPointOperator = async (req, res) => {
   const point = req.recyclingPoint;
-  const { username, email, password } = req.body || {};
+  const { username, email, password, userId } = req.body || {};
 
-  if (!username || !email) {
-    return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email' });
+  const normalizedEmail = email ? String(email).toLowerCase().trim() : '';
+  const normalizedUserId = userId ? String(userId).trim() : '';
+
+  let operator = null;
+  if (normalizedUserId) {
+    operator = store.usersById.get(normalizedUserId) || null;
+  } else if (normalizedEmail) {
+    operator = store.usersByEmail.get(normalizedEmail) || null;
   }
 
-  const generatedPassword = password ? undefined : 'demoPass1234';
+  const isExisting = Boolean(operator);
+  if (!operator) {
+    if (!username || !normalizedEmail) {
+      return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email' });
+    }
+    operator = store.ensureUser({ email: normalizedEmail, username, country: 'MX' });
+  }
 
-  const operator = store.ensureUser({ email, username, country: 'MX' });
+  const generatedPassword = isExisting ? undefined : (password ? undefined : 'demoPass1234');
 
   const operatorId = String(operator.id);
   const current = Array.isArray(point.operators) ? point.operators : [];
@@ -168,9 +180,9 @@ exports.createPointOperator = async (req, res) => {
     store.pointsById.set(String(point._id), point);
   }
 
-  return res.status(201).json({
+  return res.status(isExisting ? 200 : 201).json({
     success: true,
-    message: 'Operador creado y asignado al punto (modo demo)',
+    message: isExisting ? 'Operador asignado al punto (modo demo)' : 'Operador creado y asignado al punto (modo demo)',
     data: { operator, generatedPassword },
   });
 };

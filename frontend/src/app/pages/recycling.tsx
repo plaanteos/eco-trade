@@ -166,6 +166,7 @@ export function RecyclingPage() {
   const [adminDashboard, setAdminDashboard] = useState<PointDashboard | null>(null);
   const [adminOperators, setAdminOperators] = useState<PointOperator[]>([]);
   const [newOperator, setNewOperator] = useState({ username: '', email: '', password: '' });
+  const [assignOperatorEmail, setAssignOperatorEmail] = useState('');
   const [newPoint, setNewPoint] = useState({ name: '', address: '', city: '', state: '' });
   const [isCreatingPoint, setIsCreatingPoint] = useState(false);
 
@@ -526,14 +527,30 @@ export function RecyclingPage() {
       toast.error('Selecciona un punto de reciclaje');
       return;
     }
-    if (!newOperator.username || !newOperator.email || !newOperator.password) {
-      toast.error('Completa username, email y password');
+    if (!newOperator.username || !newOperator.email) {
+      toast.error('Completa username y email');
+      return;
+    }
+    if (newOperator.password && newOperator.password.trim().length > 0 && newOperator.password.trim().length < 8) {
+      toast.error('La contraseña debe tener al menos 8 caracteres');
       return;
     }
     setIsAdminLoading(true);
     try {
-      await api.createPointOperator(adminPointId, newOperator);
-      toast.success('Operador creado');
+      const payload: any = {
+        username: newOperator.username.trim(),
+        email: newOperator.email.trim(),
+      };
+      if (newOperator.password && newOperator.password.trim().length > 0) {
+        payload.password = newOperator.password.trim();
+      }
+      const response = await api.createPointOperator(adminPointId, payload);
+      const generatedPassword = (response as any)?.data?.generatedPassword;
+      if (generatedPassword) {
+        toast.success(`Operador creado. Password generado: ${generatedPassword}`);
+      } else {
+        toast.success((response as any)?.message || 'Operador creado');
+      }
       setNewOperator({ username: '', email: '', password: '' });
       await loadAdminOperators();
     } catch (error: any) {
@@ -543,13 +560,37 @@ export function RecyclingPage() {
     }
   };
 
+  const assignExistingAdminOperator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPointId) {
+      toast.error('Selecciona un punto de reciclaje');
+      return;
+    }
+    const email = assignOperatorEmail.trim();
+    if (!email) {
+      toast.error('Ingresa el email del operador');
+      return;
+    }
+    setIsAdminLoading(true);
+    try {
+      const response = await api.createPointOperator(adminPointId, { email });
+      toast.success((response as any)?.message || 'Operador asignado');
+      setAssignOperatorEmail('');
+      await loadAdminOperators();
+    } catch (error: any) {
+      toast.error(error.message || 'No se pudo asignar el operador');
+    } finally {
+      setIsAdminLoading(false);
+    }
+  };
+
   const removeAdminOperator = async (operatorUserId: string) => {
     if (!adminPointId) return;
-    if (!confirm('¿Remover operador del punto?')) return;
+    if (!confirm('¿Desasignar operador del punto? (No elimina el usuario)')) return;
     setIsAdminLoading(true);
     try {
       await api.removePointOperator(adminPointId, operatorUserId);
-      toast.success('Operador removido');
+      toast.success('Operador desasignado');
       await loadAdminOperators();
     } catch (error: any) {
       toast.error(error.message || 'No se pudo remover');
@@ -1329,12 +1370,12 @@ export function RecyclingPage() {
                     Operadores
                   </CardTitle>
                   <CardDescription>
-                    Crear y remover operadores asignados a este punto
+                    Crear, asignar o desasignar operadores de este punto
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {adminOperators.length === 0 ? (
-                    <div className="text-sm text-gray-500">Sin operadores cargados</div>
+                    <div className="text-sm text-gray-500">Sin operadores asignados</div>
                   ) : (
                     <div className="space-y-2">
                       {adminOperators.map((op) => {
@@ -1347,7 +1388,7 @@ export function RecyclingPage() {
                             </div>
                             {opId && (
                               <Button type="button" variant="outline" onClick={() => removeAdminOperator(opId)}>
-                                Remover
+                                Desasignar
                               </Button>
                             )}
                           </div>
@@ -1373,6 +1414,21 @@ export function RecyclingPage() {
                     </div>
                     <Button type="submit" disabled={isAdminLoading} className="w-full">
                       {isAdminLoading ? 'Creando...' : 'Crear operador'}
+                    </Button>
+                  </form>
+
+                  <form onSubmit={assignExistingAdminOperator} className="space-y-3">
+                    <div className="space-y-1">
+                      <Label>Asignar operador existente (email)</Label>
+                      <Input
+                        type="email"
+                        value={assignOperatorEmail}
+                        onChange={(e) => setAssignOperatorEmail(e.target.value)}
+                        placeholder="operador@correo.com"
+                      />
+                    </div>
+                    <Button type="submit" disabled={isAdminLoading} variant="outline" className="w-full">
+                      {isAdminLoading ? 'Asignando...' : 'Asignar al punto'}
                     </Button>
                   </form>
                 </CardContent>

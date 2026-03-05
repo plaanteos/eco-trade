@@ -460,9 +460,55 @@ exports.createPointOperator = async (req, res) => {
     if (!ensureDb(res)) return;
 
     const pointId = String(req.recyclingPoint.id);
-    const { username, email, password } = req.body || {};
+    const { username, email, password, userId } = req.body || {};
 
-    if (!username || !email) {
+    const normalizedEmail = email ? String(email).toLowerCase().trim() : undefined;
+    const normalizedUsername = username ? String(username).trim() : undefined;
+    const normalizedUserId = userId ? String(userId).trim() : undefined;
+
+    const prisma = getPrisma();
+
+    // Caso 1: asignar un usuario existente como operador del punto (por email o userId)
+    let existingUser = null;
+    if (normalizedUserId) {
+      existingUser = await prisma.user.findUnique({
+        where: { id: normalizedUserId },
+        select: { id: true, username: true, email: true, isActive: true, roles: true },
+      }).catch(() => null);
+    } else if (normalizedEmail) {
+      existingUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        select: { id: true, username: true, email: true, isActive: true, roles: true },
+      }).catch(() => null);
+    }
+
+    if (existingUser) {
+      // Asegurar rol de operador (sin sobrescribir otros roles)
+      const roles = Array.isArray(existingUser.roles) ? existingUser.roles : [];
+      const nextRoles = Array.from(new Set([...(roles.length ? roles : ['user']), 'recycling_operator']));
+      if (JSON.stringify(nextRoles) !== JSON.stringify(roles)) {
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { roles: nextRoles },
+        });
+      }
+
+      // Upsert membresía punto-operador
+      await prisma.recyclingPointOperator.upsert({
+        where: { pointId_userId: { pointId, userId: existingUser.id } },
+        update: {},
+        create: { pointId, userId: existingUser.id },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Operador asignado al punto',
+        data: { operator: { ...existingUser, _id: existingUser.id } },
+      });
+    }
+
+    // Caso 2: crear un usuario nuevo y asignarlo como operador
+    if (!normalizedUsername || !normalizedEmail) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios: username, email' });
     }
 
@@ -473,11 +519,6 @@ exports.createPointOperator = async (req, res) => {
     if (String(plainPassword).length < 8) {
       return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
     }
-
-    const normalizedEmail = String(email).toLowerCase().trim();
-    const normalizedUsername = String(username).trim();
-
-    const prisma = getPrisma();
 
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email: normalizedEmail }, { username: normalizedUsername }] },

@@ -163,6 +163,16 @@ exports.loginWithSupabase = async (_req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const demoUser = store.ensureUser({ id: req.userId, email: req.user?.email, username: req.user?.username, country: 'MX' });
+
+    const points = store.listPoints();
+    const adminPointIds = points.filter((p) => String(p.administrator) === String(demoUser.id)).map((p) => String(p._id));
+    const operatorPointIds = points
+      .filter((p) => Array.isArray(p.operators) && p.operators.some((id) => String(id) === String(demoUser.id)))
+      .map((p) => String(p._id));
+
+    const isAdmin = adminPointIds.length > 0;
+    const isOperator = operatorPointIds.length > 0 && !isAdmin;
+
     return res.json({
       success: true,
       data: {
@@ -174,6 +184,13 @@ exports.getProfile = async (req, res) => {
           country: demoUser.country,
           accountType: demoUser.accountType,
           recyclingCode: demoUser.recyclingCode,
+          recyclingAccess: {
+            isAdmin,
+            isOperator,
+            isStaff: false,
+            adminPointIds,
+            operatorPointIds,
+          },
           currency: { currency: 'MXN', symbol: '$', name: 'México' },
           ecoCoins: demoUser.ecoCoins,
           sustainabilityScore: demoUser.sustainabilityScore,
