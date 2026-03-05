@@ -798,7 +798,7 @@ export function RecyclingPage() {
                     onValueChange={setSelectedPoint}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="point">
                       <SelectValue placeholder="Selecciona un punto" />
                     </SelectTrigger>
                     <SelectContent>
@@ -812,7 +812,7 @@ export function RecyclingPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Materiales a Reciclar *</Label>
+                  <Label htmlFor="material-type-0">Materiales a Reciclar *</Label>
                   {newSubmission.materials.map((material, index) => (
                     <div key={index} className="flex gap-2">
                       <Select
@@ -822,7 +822,7 @@ export function RecyclingPage() {
                         }
                         required
                       >
-                        <SelectTrigger className="flex-1">
+                        <SelectTrigger id={`material-type-${index}`} className="flex-1" aria-label="Tipo de material">
                           <SelectValue placeholder="Tipo de material" />
                         </SelectTrigger>
                         <SelectContent>
@@ -835,6 +835,9 @@ export function RecyclingPage() {
                       </Select>
                       <Input
                         type="number"
+                        id={`material-weight-${index}`}
+                        name={`materials[${index}].weight`}
+                        autoComplete="off"
                         placeholder="Peso (kg)"
                         value={material.estimatedWeight}
                         onChange={(e) =>
@@ -1244,16 +1247,22 @@ export function RecyclingPage() {
                 <form onSubmit={createAdminPoint} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label>Nombre del punto *</Label>
+                      <Label htmlFor="point-name">Nombre del punto *</Label>
                       <Input
+                        id="point-name"
+                        name="name"
+                        autoComplete="organization"
                         placeholder="Ej: Centro de reciclaje Norte"
                         value={newPoint.name}
                         onChange={(e) => setNewPoint({ ...newPoint, name: e.target.value })}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label>Ciudad *</Label>
+                      <Label htmlFor="point-city">Ciudad *</Label>
                       <Input
+                        id="point-city"
+                        name="city"
+                        autoComplete="address-level2"
                         placeholder="Ej: Buenos Aires"
                         value={newPoint.city}
                         onChange={(e) => setNewPoint({ ...newPoint, city: e.target.value })}
@@ -1261,16 +1270,22 @@ export function RecyclingPage() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label>Dirección *</Label>
+                    <Label htmlFor="point-address">Dirección *</Label>
                     <Input
+                      id="point-address"
+                      name="address"
+                      autoComplete="street-address"
                       placeholder="Ej: Av. Corrientes 1234"
                       value={newPoint.address}
                       onChange={(e) => setNewPoint({ ...newPoint, address: e.target.value })}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>Provincia / Estado</Label>
+                    <Label htmlFor="point-state">Provincia / Estado</Label>
                     <Input
+                      id="point-state"
+                      name="state"
+                      autoComplete="address-level1"
                       placeholder="Ej: CABA"
                       value={newPoint.state}
                       onChange={(e) => setNewPoint({ ...newPoint, state: e.target.value })}
@@ -1295,9 +1310,9 @@ export function RecyclingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Punto de Reciclaje *</Label>
+                <Label htmlFor="admin-point-select">Punto de Reciclaje *</Label>
                 <Select value={adminPointId} onValueChange={setAdminPointId}>
-                  <SelectTrigger>
+                  <SelectTrigger id="admin-point-select">
                     <SelectValue placeholder="Selecciona un punto" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1400,16 +1415,16 @@ export function RecyclingPage() {
                   <form onSubmit={createAdminOperator} className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="space-y-1">
-                        <Label>Username</Label>
-                        <Input value={newOperator.username} onChange={(e) => setNewOperator({ ...newOperator, username: e.target.value })} />
+                        <Label htmlFor="new-op-username">Username</Label>
+                        <Input id="new-op-username" name="username" autoComplete="username" value={newOperator.username} onChange={(e) => setNewOperator({ ...newOperator, username: e.target.value })} />
                       </div>
                       <div className="space-y-1">
-                        <Label>Email</Label>
-                        <Input type="email" value={newOperator.email} onChange={(e) => setNewOperator({ ...newOperator, email: e.target.value })} />
+                        <Label htmlFor="new-op-email">Email</Label>
+                        <Input id="new-op-email" type="email" name="email" autoComplete="email" value={newOperator.email} onChange={(e) => setNewOperator({ ...newOperator, email: e.target.value })} />
                       </div>
                       <div className="space-y-1">
-                        <Label>Password</Label>
-                        <Input type="password" value={newOperator.password} onChange={(e) => setNewOperator({ ...newOperator, password: e.target.value })} />
+                        <Label htmlFor="new-op-password">Password</Label>
+                        <Input id="new-op-password" type="password" name="password" autoComplete="new-password" value={newOperator.password} onChange={(e) => setNewOperator({ ...newOperator, password: e.target.value })} />
                       </div>
                     </div>
                     <Button type="submit" disabled={isAdminLoading} className="w-full">
@@ -1419,9 +1434,12 @@ export function RecyclingPage() {
 
                   <form onSubmit={assignExistingAdminOperator} className="space-y-3">
                     <div className="space-y-1">
-                      <Label>Asignar operador existente (email)</Label>
+                      <Label htmlFor="assign-op-email">Asignar operador existente (email)</Label>
                       <Input
+                        id="assign-op-email"
                         type="email"
+                        name="assignEmail"
+                        autoComplete="email"
                         value={assignOperatorEmail}
                         onChange={(e) => setAssignOperatorEmail(e.target.value)}
                         placeholder="operador@correo.com"

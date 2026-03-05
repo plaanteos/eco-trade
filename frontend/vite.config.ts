@@ -10,6 +10,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    headers: {
+      // Vite uses eval() internally for HMR in development; unsafe-eval is required here.
+      // Production builds served by the backend use Helmet's CSP (server-main.js).
+      'Content-Security-Policy':
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' http: https: ws: wss:; font-src 'self' data:;",
+    },
+  },
   resolve: {
     alias: {
       // Alias @ to the src directory
