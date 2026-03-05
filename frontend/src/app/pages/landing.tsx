@@ -80,6 +80,30 @@ export function LandingPage() {
               sostenibles y recibes recompensas. Entra, entiende y empieza en minutos.
             </p>
 
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link to="/register">
+                <Button size="lg" className="gap-2">
+                  Comenzar Gratis <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <a href="#empezar">
+                <Button size="lg" variant="outline">
+                  Guía rápida
+                </Button>
+              </a>
+            </div>
+
+            <div className="mx-auto mt-6 max-w-3xl rounded-2xl border bg-background/60 p-4 text-left backdrop-blur">
+              <div className="text-sm font-medium">Manifiesto</div>
+              <p className="mt-2 text-pretty text-base text-muted-foreground">
+                “La basura no desaparece.
+                <br />
+                Y en realidad nunca existió.
+                <br />
+                Solo existe un sistema que todavía no aprendió a verla como recurso.”
+              </p>
+            </div>
+
             <div className="mx-auto mt-7 grid max-w-3xl grid-cols-1 gap-3 text-left md:grid-cols-2">
               {[
                 {
@@ -111,19 +135,6 @@ export function LandingPage() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link to="/register">
-                <Button size="lg" className="gap-2">
-                  Comenzar Gratis <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <a href="#empezar">
-                <Button size="lg" variant="outline">
-                  Guía rápida
-                </Button>
-              </a>
             </div>
 
             {/* Stats */}
