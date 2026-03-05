@@ -4,9 +4,11 @@ import {
   Award,
   BarChart3,
   Coins,
+  FileText,
   Globe,
   Heart,
   Leaf,
+  Mail,
   Recycle,
   Shield,
   ShoppingBag,
@@ -68,15 +70,48 @@ export function LandingPage() {
             </div>
 
             <h1 className="mt-8 text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-              Compra, Vende y Recicla.
+              Intercambia, vende y recicla.
               <br />
-              <span className="text-chart-2">Gana Recompensas.</span>
+              <span className="text-chart-2">Gana ecoCoins.</span>
             </h1>
 
             <p className="mt-6 text-pretty text-base text-muted-foreground md:text-lg">
-              La plataforma que convierte tus acciones sostenibles en recompensas.
-              Únete a la revolución de la economía circular y contribuye a un planeta más verde.
+              EcoTrade es una plataforma de economía circular donde publicas productos, realizas transacciones
+              sostenibles y recibes recompensas. Entra, entiende y empieza en minutos.
             </p>
+
+            <div className="mx-auto mt-7 grid max-w-3xl grid-cols-1 gap-3 text-left md:grid-cols-2">
+              {[
+                {
+                  title: '¿Qué hace?',
+                  text: 'Publica, encuentra e intercambia productos y registra transacciones de forma clara.',
+                },
+                {
+                  title: '¿Cómo te ayuda?',
+                  text: 'Ahorra con reutilización, genera ingresos extra vendiendo y reduce residuos.',
+                },
+                {
+                  title: 'Valor inmediato',
+                  text: 'Ganas ecoCoins por participar (regla base: 1 ecoCoin por cada 10 unidades, con bonificaciones según el caso).',
+                },
+                {
+                  title: 'Cómo empezar',
+                  text: 'Regístrate, publica o busca, completa una transacción y revisa tu perfil/ecoCoins.',
+                },
+              ].map((item) => (
+                <Card key={item.title} className="bg-background/70">
+                  <CardContent className="flex gap-3 p-4">
+                    <div className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-chart-2/10">
+                      <CheckCircle2 className="h-4 w-4 text-chart-2" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">{item.title}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">{item.text}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link to="/register">
@@ -84,9 +119,9 @@ export function LandingPage() {
                   Comenzar Gratis <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <a href="#como-funciona">
+              <a href="#empezar">
                 <Button size="lg" variant="outline">
-                  Ver Cómo Funciona
+                  Guía rápida
                 </Button>
               </a>
             </div>
@@ -97,31 +132,75 @@ export function LandingPage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm ring-1 ring-border">
                   <ShoppingBag className="h-5 w-5 text-chart-2" />
                 </div>
-                <div className="text-2xl font-semibold">10K+</div>
-                <div className="text-center text-sm text-muted-foreground">Productos Vendidos</div>
+                <div className="text-2xl font-semibold">Marketplace</div>
+                <div className="text-center text-sm text-muted-foreground">Compra y venta sostenible</div>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm ring-1 ring-border">
                   <Users className="h-5 w-5 text-chart-3" />
                 </div>
-                <div className="text-2xl font-semibold">5K+</div>
-                <div className="text-center text-sm text-muted-foreground">Usuarios Activos</div>
+                <div className="text-2xl font-semibold">Comunidad</div>
+                <div className="text-center text-sm text-muted-foreground">Intercambios con propósito</div>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm ring-1 ring-border">
                   <Leaf className="h-5 w-5 text-chart-2" />
                 </div>
-                <div className="text-2xl font-semibold">50 Ton</div>
-                <div className="text-center text-sm text-muted-foreground">CO₂ Ahorrado</div>
+                <div className="text-2xl font-semibold">Impacto</div>
+                <div className="text-center text-sm text-muted-foreground">Reutiliza y reduce residuos</div>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm ring-1 ring-border">
                   <Recycle className="h-5 w-5 text-chart-5" />
                 </div>
-                <div className="text-2xl font-semibold">100+</div>
-                <div className="text-center text-sm text-muted-foreground">Puntos de Reciclaje</div>
+                <div className="text-2xl font-semibold">Reciclaje</div>
+                <div className="text-center text-sm text-muted-foreground">Puntos y reportes</div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick start */}
+      <section id="empezar" className="py-14">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Guía rápida: empieza en 4 pasos</h2>
+            <p className="mt-3 text-muted-foreground">
+              Tiempo es lo más valioso: aquí tienes el camino corto para entrar y ver valor sin perderte.
+            </p>
+          </div>
+
+          <div className="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-4">
+            {[
+              { n: '1', title: 'Regístrate', text: 'Crea tu cuenta y accede al panel.' },
+              { n: '2', title: 'Publica o busca', text: 'Sube un producto o explora el marketplace.' },
+              { n: '3', title: 'Transacciona', text: 'Completa una compra/venta o intercambio.' },
+              { n: '4', title: 'Revisa ecoCoins', text: 'Consulta recompensas e historial en tu perfil.' },
+            ].map((step) => (
+              <Card key={step.title}>
+                <CardHeader>
+                  <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-chart-2/10">
+                    <span className="text-sm font-semibold text-chart-2">{step.n}</span>
+                  </div>
+                  <CardTitle className="text-base">{step.title}</CardTitle>
+                  <CardDescription>{step.text}</CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link to="/register">
+              <Button size="lg" className="gap-2">
+                Crear cuenta <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link to="/login">
+              <Button size="lg" variant="outline">
+                Ya tengo cuenta
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
@@ -249,7 +328,7 @@ export function LandingPage() {
               </div>
               <h3 className="mt-6 text-xl font-semibold">Gana y Canjea</h3>
               <p className="mt-2 text-muted-foreground">
-                Acumula EcoCoins con cada acción y canjéalos por descuentos, beneficios y más
+                Acumula ecoCoins con cada acción y úsalos como beneficio dentro de la plataforma
               </p>
             </div>
           </div>
@@ -295,35 +374,100 @@ export function LandingPage() {
               <Card className="bg-chart-2 text-primary-foreground">
                 <CardContent className="p-6">
                   <Shield className="h-7 w-7" />
-                  <div className="mt-6 text-4xl font-semibold">100%</div>
-                  <div className="mt-2 text-lg font-medium">Seguro y Confiable</div>
+                  <div className="mt-6 text-4xl font-semibold">Seguro</div>
+                  <div className="mt-2 text-lg font-medium">Acceso y permisos</div>
                 </CardContent>
               </Card>
 
               <Card className="bg-chart-3 text-primary-foreground">
                 <CardContent className="p-6">
                   <Zap className="h-7 w-7" />
-                  <div className="mt-6 text-4xl font-semibold">24/7</div>
-                  <div className="mt-2 text-lg font-medium">Disponible Siempre</div>
+                  <div className="mt-6 text-4xl font-semibold">Simple</div>
+                  <div className="mt-2 text-lg font-medium">Flujo directo</div>
                 </CardContent>
               </Card>
 
               <Card className="bg-chart-1 text-primary-foreground">
                 <CardContent className="p-6">
                   <Heart className="h-7 w-7" />
-                  <div className="mt-6 text-4xl font-semibold">5K+</div>
-                  <div className="mt-2 text-lg font-medium">Usuarios Felices</div>
+                  <div className="mt-6 text-4xl font-semibold">Comunidad</div>
+                  <div className="mt-2 text-lg font-medium">Intercambios responsables</div>
                 </CardContent>
               </Card>
 
               <Card className="bg-chart-5 text-primary-foreground">
                 <CardContent className="p-6">
                   <Globe className="h-7 w-7" />
-                  <div className="mt-6 text-4xl font-semibold">8</div>
-                  <div className="mt-2 text-lg font-medium">Países Activos</div>
+                  <div className="mt-6 text-4xl font-semibold">Impacto</div>
+                  <div className="mt-2 text-lg font-medium">Economía circular</div>
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust */}
+      <section id="confianza" className="py-16">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Confianza y transparencia</h2>
+            <p className="mt-3 text-muted-foreground">
+              Explicaciones claras, contacto directo y un resumen simple de privacidad/uso.
+            </p>
+          </div>
+
+          <div className="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3">
+            <Card id="contacto">
+              <CardHeader>
+                <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-chart-3/10">
+                  <Mail className="h-5 w-5 text-chart-3" />
+                </div>
+                <CardTitle>Contacto</CardTitle>
+                <CardDescription>
+                  Soporte, dudas o reportes: <a className="underline" href="mailto:jesusjcopes@gmail.com">jesusjcopes@gmail.com</a>
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card id="privacidad">
+              <CardHeader>
+                <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-chart-2/10">
+                  <Shield className="h-5 w-5 text-chart-2" />
+                </div>
+                <CardTitle>Privacidad (resumen)</CardTitle>
+                <CardDescription>
+                  Usamos datos de cuenta y actividad (publicaciones y transacciones) para operar EcoTrade. Puedes solicitar
+                  actualización o eliminación de tu cuenta por contacto.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card id="terminos">
+              <CardHeader>
+                <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-chart-5/10">
+                  <FileText className="h-5 w-5 text-chart-5" />
+                </div>
+                <CardTitle>Uso y reglas</CardTitle>
+                <CardDescription>
+                  La plataforma facilita intercambios responsables. Se aplican reglas de convivencia y medidas ante abuso para
+                  proteger a la comunidad.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+
+          <div className="mx-auto mt-8 max-w-5xl">
+            <Card className="bg-secondary/30">
+              <CardContent className="p-6">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div className="text-sm font-medium">¿Cómo se calculan los ecoCoins?</div>
+                  <div className="text-sm text-muted-foreground">
+                    Regla base: 1 ecoCoin por cada 10 unidades. Puede haber multiplicadores según categoría, condición y bonificaciones.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -380,18 +524,18 @@ export function LandingPage() {
               <div>
                 <div className="font-medium">Compañía</div>
                 <ul className="mt-4 space-y-2 text-sm text-primary-foreground/70">
-                  <li>Sobre Nosotros</li>
-                  <li>Blog</li>
-                  <li>Contacto</li>
+                  <li><a className="underline" href="#como-funciona">Cómo funciona</a></li>
+                  <li><a className="underline" href="#confianza">Confianza</a></li>
+                  <li><a className="underline" href="#contacto">Contacto</a></li>
                 </ul>
               </div>
 
               <div>
                 <div className="font-medium">Legal</div>
                 <ul className="mt-4 space-y-2 text-sm text-primary-foreground/70">
-                  <li>Privacidad</li>
-                  <li>Términos</li>
-                  <li>Cookies</li>
+                  <li><a className="underline" href="#privacidad">Privacidad</a></li>
+                  <li><a className="underline" href="#terminos">Términos</a></li>
+                  <li><span>Cookies</span></li>
                 </ul>
               </div>
             </div>
