@@ -129,7 +129,12 @@ npm run frontend:build
 
 ## 🧩 Nota sobre scripts legacy
 
-El script `npm run init-db` apunta a un inicializador histórico basado en Mongo/Mongoose y **no aplica** al stack Prisma/PostgreSQL actual. Para producción, el “init” correcto es aplicar Prisma (`migrate deploy`/`db push`).
+Los scripts `npm run init-db` / `npm run reset-db` eran inicializadores históricos basados en Mongo/Mongoose y **no aplican** al stack Prisma/PostgreSQL actual.
+
+- En este repo están **deshabilitados** a propósito para evitar ejecuciones accidentales.
+- El código legacy quedó archivado en `backend/legacy-mongoose/scripts/initDatabase_legacy_mongoose.js` solo como referencia.
+
+Para producción, el “init” correcto es aplicar Prisma (`migrate deploy`/`db push`) y luego crear el admin inicial con `npm run bootstrap:superadmin`.
 
 ## 🔧 Troubleshooting rápido
 

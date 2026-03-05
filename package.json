@@ -13,8 +13,6 @@
     "frontend:build": "npm --prefix frontend run build",
     "test": "jest",
     "lint": "eslint .",
-    "init-db": "node backend/scripts/initDatabase.js",
-    "reset-db": "node backend/scripts/initDatabase.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -22,7 +20,9 @@
     "db:check": "node backend/scripts/dbCheck.js",
     "ecocoins:backfill-ledger": "node backend/scripts/backfillEcoCoinLedger.js",
     "bootstrap:superadmin": "node backend/scripts/bootstrapSuperAdmin.js",
-    "backfill:companies": "node backend/scripts/backfillCompanies.js"
+    "backfill:companies": "node backend/scripts/backfillCompanies.js",
+    "init-db": "node -e \"console.error('init-db está deshabilitado: era un script legacy (Mongo/Mongoose) y no aplica al stack actual Prisma/PostgreSQL. Usá prisma:migrate/db:push y bootstrap:superadmin.'); process.exit(1);\"",
+    "reset-db": "node -e \"console.error('reset-db está deshabilitado: era un script legacy (Mongo/Mongoose) y no aplica al stack actual Prisma/PostgreSQL. Usá prisma:migrate/db:push y bootstrap:superadmin.'); process.exit(1);\""
   },
   "dependencies": {
     "@prisma/client": "^6.16.1",
@@ -32,12 +32,9 @@
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
     "express-rate-limit": "^7.5.0",
-    "firebase-admin": "^13.7.0",
     "helmet": "^4.6.0",
     "joi": "^17.7.0",
     "jsonwebtoken": "^9.0.0",
-    "mongodb": "^7.0.0",
-    "mongoose": "^6.1.2",
     "multer": "^1.4.5-lts.1",
     "swagger-jsdoc": "^6.2.5",
     "swagger-ui-express": "^4.6.0"
