@@ -93,15 +93,15 @@ export function LandingPage() {
               </a>
             </div>
 
-            <div className="mx-auto mt-6 max-w-3xl rounded-2xl border bg-background/60 p-4 text-left backdrop-blur">
-              <div className="text-sm font-medium">Manifiesto</div>
-              <p className="mt-2 text-pretty text-base text-muted-foreground">
+            <div className="mx-auto mt-4 max-w-3xl rounded-2xl border bg-background/60 p-3 text-left backdrop-blur sm:mt-6 sm:p-4">
+              <div className="text-sm font-medium">Por qué existe EcoTrade</div>
+              <blockquote className="mt-2 border-l-2 border-chart-2/30 pl-4 text-pretty text-base text-muted-foreground italic leading-relaxed">
                 “La basura no desaparece.
-                <br />
+                <br className="hidden sm:block" />
                 Y en realidad nunca existió.
-                <br />
+                <br className="hidden sm:block" />
                 Solo existe un sistema que todavía no aprendió a verla como recurso.”
-              </p>
+              </blockquote>
             </div>
 
             <div className="mx-auto mt-7 grid max-w-3xl grid-cols-1 gap-3 text-left md:grid-cols-2">
