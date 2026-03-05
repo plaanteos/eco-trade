@@ -68,7 +68,6 @@ Notas:
 - env-example.txt — Documentación del proyecto (docs)
 - package-lock.json — Lockfile de npm (resolución exacta) (lockfile)
 - package.json — Manifiesto de Node (scripts/deps) (config)
-- product-routes.js — Archivo del proyecto (other)
 - project-structure.md — Documentación del proyecto (docs)
 - server-main.js — Entrypoint del backend Express (entrypoint)
 - vercel.json — Config de despliegue (Vercel) (config)
@@ -198,6 +197,7 @@ Notas:
 - firebase-config.js — Código/archivos legacy archivados (no runtime) (legacy)
 - package-json.json — Archivo JSON (config/datos) (data)
 - product-model.js — Código/archivos legacy archivados (no runtime) (legacy)
+- product-routes.js — Código/archivos legacy archivados (no runtime) (legacy)
 - productController.js — Código/archivos legacy archivados (no runtime) (legacy)
 - productRoutes.js — Código/archivos legacy archivados (no runtime) (legacy)
 - swagger.js — Código/archivos legacy archivados (no runtime) (legacy)
@@ -374,6 +374,7 @@ Notas:
 - Importa (interno): backend/config/database-config.js, backend/config/prismaClient.js, backend/utils/demoProductsStore.js, backend/utils/rbac.js
 - Importa (externo): (ninguno detectado)
 - Usado por: backend/routers/productRoutes.js
+- Notas: Validación de precio con `Number.isFinite()` en `createProduct` y `updateProduct` para rechazar valores no numéricos (strings, NaN) antes de llegar a Prisma.
 
 ### backend/controllers/recyclingPointController_demo.js
 
@@ -1415,6 +1416,14 @@ Notas:
 - Importa (externo): (ninguno detectado)
 - Usado por: (nadie detectado)
 
+### legacy/root/product-routes.js
+
+- Propósito: Código/archivos legacy archivados (no runtime) — rutas Mongoose del stack original, reemplazadas por backend/routers/productRoutes.js
+- Tipo: legacy
+- Importa (interno): (ninguno detectado)
+- Importa (externo): express
+- Usado por: (nadie detectado)
+
 ### legacy/root/productRoutes.js
 
 - Propósito: Código/archivos legacy archivados (no runtime)
@@ -1527,10 +1536,10 @@ Notas:
 - Importa (externo): (ninguno detectado)
 - Usado por: (nadie detectado)
 
-### product-routes.js
+### legacy/root/product-routes.js
 
-- Propósito: Archivo del proyecto
-- Tipo: other
+- Propósito: Código/archivos legacy archivados (no runtime) — rutas Mongoose del stack original, reemplazadas por backend/routers/productRoutes.js
+- Tipo: legacy
 - Importa (interno): (ninguno detectado)
 - Importa (externo): express
 - Usado por: (nadie detectado)
