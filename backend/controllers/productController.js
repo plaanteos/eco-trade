@@ -131,10 +131,11 @@ exports.createProduct = async (req, res) => {
     }
 
     // Validar precio
-    if (price <= 0) {
+    const parsedPrice = parseFloat(price);
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
       return res.status(400).json({ 
         success: false,
-        message: 'El precio debe ser mayor a 0' 
+        message: 'El precio debe ser un número válido mayor a 0' 
       });
     }
 
@@ -142,7 +143,7 @@ exports.createProduct = async (req, res) => {
     const productData = {
       name: title,
       description,
-      price: parseFloat(price),
+      price: parsedPrice,
       category,
       condition,
       locationText: location || 'No especificada',
@@ -332,7 +333,13 @@ exports.updateProduct = async (req, res) => {
     const updateData = {};
     if (title) updateData.name = title;
     if (description) updateData.description = description;
-    if (price) updateData.price = parseFloat(price);
+    if (price !== undefined && price !== null && price !== '') {
+      const parsedUpdatePrice = parseFloat(price);
+      if (!Number.isFinite(parsedUpdatePrice) || parsedUpdatePrice <= 0) {
+        return res.status(400).json({ success: false, message: 'El precio debe ser un número válido mayor a 0' });
+      }
+      updateData.price = parsedUpdatePrice;
+    }
     if (category) updateData.category = category;
     if (condition) updateData.condition = condition;
     if (location) updateData.locationText = location;
