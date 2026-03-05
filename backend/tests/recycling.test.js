@@ -44,6 +44,19 @@ async function getEcoCoinsHistory(token) {
   return res.body.data.history;
 }
 
+async function getRecyclingCode(token) {
+  const res = await request(app)
+    .get('/api/users/profile')
+    .set('Authorization', `Bearer ${token}`);
+
+  expect(res.statusCode).toBe(200);
+  expect(res.body.success).toBe(true);
+
+  const user = res.body.data?.user || res.body.data?.profile || res.body.data;
+  expect(user?.recyclingCode).toBeTruthy();
+  return String(user.recyclingCode);
+}
+
 describe('P0 - Reciclaje: tracking público sin PII + rate limit', () => {
   it('tracking público por code no expone PII ni IDs internos', async () => {
     const adminToken = await login('admin@ecotrade.com');
@@ -292,5 +305,66 @@ describe('P0 - Reciclaje: tracking público sin PII + rate limit', () => {
     expect(listRes.body.data?.submissions?.length).toBeLessThanOrEqual(1);
     expect(listRes.body.data?.pagination?.page).toBe(1);
     expect(listRes.body.data?.pagination?.limit).toBe(1);
+  });
+
+  it('registro asistido permite operador asignado y admin del punto', async () => {
+    const adminToken = await login('admin_staff@ecotrade.com');
+    const userToken = await login('user_staff@ecotrade.com');
+    const userRecyclingCode = await getRecyclingCode(userToken);
+
+    // Admin crea un punto
+    const pointRes = await request(app)
+      .post('/api/recycling/points')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Punto Staff',
+        address: 'Dir',
+        city: 'CDMX',
+        acceptedMaterials: [{ materialType: 'Plástico PET', rewardPerKg: 2 }],
+      });
+
+    expect(pointRes.statusCode).toBe(201);
+    expect(pointRes.body.success).toBe(true);
+    const pointId = pointRes.body.data?.recyclingPoint?._id || pointRes.body.data?.recyclingPoint?.id;
+    expect(pointId).toBeTruthy();
+
+    // Admin crea y asigna un operador al punto
+    const opRes = await request(app)
+      .post(`/api/recycling/points/${pointId}/operators`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ username: 'operador_staff', email: 'operator_staff@ecotrade.com' });
+
+    expect(opRes.statusCode).toBe(201);
+    expect(opRes.body.success).toBe(true);
+    const operatorId = opRes.body.data?.operator?._id || opRes.body.data?.operator?.id;
+    expect(operatorId).toBeTruthy();
+
+    const operatorToken = await login('operator_staff@ecotrade.com');
+
+    // Operador registra entrega asistida
+    const assistedByOperator = await request(app)
+      .post(`/api/recycling/points/${pointId}/submissions/register`)
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .send({
+        userRecyclingCode,
+        materials: [{ materialType: 'Plástico PET', estimatedWeight: 1 }],
+        submissionNotes: 'ok',
+      });
+
+    expect(assistedByOperator.statusCode).toBe(201);
+    expect(assistedByOperator.body.success).toBe(true);
+
+    // Admin del punto también puede registrar (si se usa el flujo asistido)
+    const assistedByAdmin = await request(app)
+      .post(`/api/recycling/points/${pointId}/submissions/register`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        userRecyclingCode,
+        materials: [{ materialType: 'Plástico PET', estimatedWeight: 1 }],
+        submissionNotes: 'ok-admin',
+      });
+
+    expect(assistedByAdmin.statusCode).toBe(201);
+    expect(assistedByAdmin.body.success).toBe(true);
   });
 });

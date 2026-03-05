@@ -649,9 +649,9 @@ export function RecyclingPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
+                        <Label htmlFor="staff-point-id">Punto de Reciclaje *</Label>
           <TabsTrigger value="map">Puntos de Reciclaje</TabsTrigger>
-          {!isStaff && <TabsTrigger value="submit">Registrar Entrega</TabsTrigger>}
+                          <SelectTrigger id="staff-point-id" aria-label="Punto de reciclaje">
           {!isStaff && <TabsTrigger value="history">Mis Entregas</TabsTrigger>}
           {!isStaff && <TabsTrigger value="stats">Estadísticas</TabsTrigger>}
           {showOperatorTab && <TabsTrigger value="operator">Operador</TabsTrigger>}
@@ -665,8 +665,10 @@ export function RecyclingPage() {
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
                 Puntos de Reciclaje Disponibles
-              </CardTitle>
+                        <Label htmlFor="staff-user-recycling-code">Código del usuario *</Label>
               <CardDescription>
+                          id="staff-user-recycling-code"
+                          name="userRecyclingCode"
                 Encuentra el punto de reciclaje más cercano
               </CardDescription>
             </CardHeader>
@@ -674,9 +676,12 @@ export function RecyclingPage() {
               {isLoading ? (
                 <p className="text-center py-8 text-gray-500">
                   Cargando puntos de reciclaje...
-                </p>
+                        <Label htmlFor="staff-material-type-0">Materiales *</Label>
               ) : recyclingPoints.length === 0 ? (
                 <p className="text-center py-8 text-gray-500">
+                            <Label htmlFor={`staff-material-type-${index}`} className="sr-only">
+                              Tipo de material
+                            </Label>
                   No hay puntos de reciclaje disponibles
                 </p>
               ) : (
@@ -685,7 +690,9 @@ export function RecyclingPage() {
                     <Card key={getPointId(point)}>
                       <CardHeader>
                         <div className="flex items-start justify-between">
+                                id={`staff-material-type-${index}`}
                           <div>
+                                aria-label="Tipo de material"
                             <CardTitle className="text-lg">{point.name}</CardTitle>
                             <CardDescription>
                               {point.address}, {point.city}, {point.state}
@@ -697,8 +704,13 @@ export function RecyclingPage() {
                             }
                           >
                             {point.status === 'active' ? 'Activo' : point.status}
+                            <Label htmlFor={`staff-material-weight-${index}`} className="sr-only">
+                              Peso (kg)
+                            </Label>
                           </Badge>
                         </div>
+                              id={`staff-material-weight-${index}`}
+                              name={`materials[${index}].estimatedWeight`}
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
@@ -727,8 +739,10 @@ export function RecyclingPage() {
                             </Button>
                           )}
                         </div>
-                      </CardContent>
+                        <Label htmlFor="staff-notes">Notas (opcional)</Label>
                     </Card>
+                          id="staff-notes"
+                          name="notes"
                   ))}
                 </div>
               )}

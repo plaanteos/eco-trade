@@ -93,7 +93,7 @@ router.post(
 	'/points/:pointId/submissions/register',
 	authenticate,
 	loadRecyclingPoint('pointId'),
-	requirePointOperator(),
+	requirePointOperatorOrAdmin(),
 	recyclingSubmissionController.registerDeliveryByOperator
 );
 

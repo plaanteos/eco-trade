@@ -93,7 +93,7 @@ export function ProfilePage() {
     setIsLoading(true);
 
     try {
-      await api.updateProfile(profileData);
+      await api.updateProfile({ username: profileData.username });
       toast.success('Perfil actualizado exitosamente');
       await refreshProfile();
       setEditMode(false);
@@ -360,14 +360,8 @@ export function ProfilePage() {
                       id="email"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) =>
-                        setProfileData({
-                          ...profileData,
-                          email: e.target.value,
-                        })
-                      }
                       className="pl-10"
-                      disabled={!editMode}
+                      disabled
                     />
                   </div>
                 </div>
