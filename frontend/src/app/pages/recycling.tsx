@@ -649,9 +649,9 @@ export function RecyclingPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                        <Label htmlFor="staff-point-id">Punto de Reciclaje *</Label>
+        <TabsList>
           <TabsTrigger value="map">Puntos de Reciclaje</TabsTrigger>
-                          <SelectTrigger id="staff-point-id" aria-label="Punto de reciclaje">
+          {!isStaff && <TabsTrigger value="submit">Registrar Entrega</TabsTrigger>}
           {!isStaff && <TabsTrigger value="history">Mis Entregas</TabsTrigger>}
           {!isStaff && <TabsTrigger value="stats">Estadísticas</TabsTrigger>}
           {showOperatorTab && <TabsTrigger value="operator">Operador</TabsTrigger>}
@@ -665,10 +665,8 @@ export function RecyclingPage() {
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
                 Puntos de Reciclaje Disponibles
-                        <Label htmlFor="staff-user-recycling-code">Código del usuario *</Label>
+              </CardTitle>
               <CardDescription>
-                          id="staff-user-recycling-code"
-                          name="userRecyclingCode"
                 Encuentra el punto de reciclaje más cercano
               </CardDescription>
             </CardHeader>
@@ -676,12 +674,9 @@ export function RecyclingPage() {
               {isLoading ? (
                 <p className="text-center py-8 text-gray-500">
                   Cargando puntos de reciclaje...
-                        <Label htmlFor="staff-material-type-0">Materiales *</Label>
+                </p>
               ) : recyclingPoints.length === 0 ? (
                 <p className="text-center py-8 text-gray-500">
-                            <Label htmlFor={`staff-material-type-${index}`} className="sr-only">
-                              Tipo de material
-                            </Label>
                   No hay puntos de reciclaje disponibles
                 </p>
               ) : (
@@ -690,9 +685,7 @@ export function RecyclingPage() {
                     <Card key={getPointId(point)}>
                       <CardHeader>
                         <div className="flex items-start justify-between">
-                                id={`staff-material-type-${index}`}
                           <div>
-                                aria-label="Tipo de material"
                             <CardTitle className="text-lg">{point.name}</CardTitle>
                             <CardDescription>
                               {point.address}, {point.city}, {point.state}
@@ -704,13 +697,8 @@ export function RecyclingPage() {
                             }
                           >
                             {point.status === 'active' ? 'Activo' : point.status}
-                            <Label htmlFor={`staff-material-weight-${index}`} className="sr-only">
-                              Peso (kg)
-                            </Label>
                           </Badge>
                         </div>
-                              id={`staff-material-weight-${index}`}
-                              name={`materials[${index}].estimatedWeight`}
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
@@ -739,10 +727,8 @@ export function RecyclingPage() {
                             </Button>
                           )}
                         </div>
-                        <Label htmlFor="staff-notes">Notas (opcional)</Label>
+                      </CardContent>
                     </Card>
-                          id="staff-notes"
-                          name="notes"
                   ))}
                 </div>
               )}
@@ -1061,9 +1047,9 @@ export function RecyclingPage() {
             <form onSubmit={handleStaffRegister}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Punto de Reciclaje *</Label>
+                  <Label htmlFor="staff-point-id">Punto de Reciclaje *</Label>
                   <Select value={staffPointId} onValueChange={setStaffPointId}>
-                    <SelectTrigger>
+                    <SelectTrigger id="staff-point-id" aria-label="Punto de reciclaje">
                       <SelectValue placeholder="Selecciona un punto" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1077,8 +1063,10 @@ export function RecyclingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Código del usuario *</Label>
+                  <Label htmlFor="staff-user-recycling-code">Código del usuario *</Label>
                   <Input
+                    id="staff-user-recycling-code"
+                    name="userRecyclingCode"
                     value={staffUserRecyclingCode}
                     onChange={(e) => setStaffUserRecyclingCode(e.target.value)}
                     placeholder="Ej: ab12cd34..."
@@ -1086,9 +1074,12 @@ export function RecyclingPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Materiales *</Label>
+                  <Label htmlFor="staff-material-type-0">Materiales *</Label>
                   {staffSubmission.materials.map((material, index) => (
                     <div key={index} className="flex gap-2">
+                      <Label htmlFor={`staff-material-type-${index}`} className="sr-only">
+                        Tipo de material
+                      </Label>
                       <Select
                         value={material.materialType}
                         onValueChange={(value) =>
@@ -1096,7 +1087,11 @@ export function RecyclingPage() {
                         }
                         required
                       >
-                        <SelectTrigger className="flex-1">
+                        <SelectTrigger
+                          id={`staff-material-type-${index}`}
+                          className="flex-1"
+                          aria-label="Tipo de material"
+                        >
                           <SelectValue placeholder="Tipo de material" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1107,8 +1102,13 @@ export function RecyclingPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <Label htmlFor={`staff-material-weight-${index}`} className="sr-only">
+                        Peso (kg)
+                      </Label>
                       <Input
                         type="number"
+                        id={`staff-material-weight-${index}`}
+                        name={`materials[${index}].estimatedWeight`}
                         placeholder="Peso (kg)"
                         value={material.estimatedWeight}
                         onChange={(e) =>
@@ -1137,8 +1137,10 @@ export function RecyclingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Notas (opcional)</Label>
+                  <Label htmlFor="staff-notes">Notas (opcional)</Label>
                   <Textarea
+                    id="staff-notes"
+                    name="notes"
                     value={staffSubmission.notes}
                     onChange={(e) => setStaffSubmission({ ...staffSubmission, notes: e.target.value })}
                     rows={3}
