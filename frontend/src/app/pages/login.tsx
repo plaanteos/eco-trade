@@ -139,13 +139,6 @@ export function LoginPage() {
             </CardFooter>
           </form>
         </Card>
-
-        {/* Demo credentials hint */}
-        <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <p className="text-sm text-blue-800 text-center">
-            <strong>Modo demo:</strong> Cualquier email y contraseña funciona para probar la aplicación
-          </p>
-        </div>
       </div>
     </div>
   );

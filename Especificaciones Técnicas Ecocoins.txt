@@ -1,0 +1,241 @@
+SISTEMA ECOCOINS (ECOUSD): ESPECIFICACIONES TÉCNICAS, RESPALDO Y MERCADO
+Versión: 2026-03-05
+Estado: Documento de diseño (NO implementado aún)
+Objetivo: Definir un esquema consistente para que EcoCoins funcione como una stablecoin interna/redimible, con peg a USD, emisión por reciclaje y uso en marketplace.
+
+AVISO:
+- Esto es especificación técnica/operativa, no asesoramiento legal/financiero.
+- “Stablecoin” implica reglas estrictas de respaldo, redención y control de riesgo. Si no se cumple, EcoCoins debe comunicarse como “crédito/recompensa” y no como moneda estable.
+
+===============================================================================
+0) DEFINICIONES Y CONVENCIONES
+-------------------------------------------------------------------------------
+- Símbolo: ECOUSD (EcoCoin)
+- Peg objetivo: 1 ECOUSD = 1 USD (valor teórico de redención)
+- Moneda de referencia: USD
+- Unidades enteras (requisito):
+  Se usará una “unidad mínima” para permitir centavos sin decimales.
+  Recomendación:
+  - Unidad contable mínima: 1 ecoCent = 0.01 USD
+  - Representación en sistema (entero): ecoCents (int)
+  - Display al usuario: ECOUSD = ecoCents / 100
+  Ejemplo: 12.99 USD = 1299 ecoCents
+
+- Tipos de respaldo (“reservas”):
+  R1) Reserva primaria (preferida): USD/USDC o instrumentos líquidos equivalentes.
+  R2) Reserva secundaria (con haircut): inventario de material reciclado valorizable (riesgo de precio/merma).
+
+- Principio de solvencia:
+  Reservas (en USD) >= ECOUSD en circulación (en USD) * ratioRespaldoObjetivo
+  Recomendación: ratioRespaldoObjetivo = 1.05 (5% buffer).
+
+===============================================================================
+1) TABLA DE PRECIOS DE REFERENCIA (MARZO 2026 - ARGENTINA)
+-------------------------------------------------------------------------------
+(Completar con fuentes y valores).
+Reglas:
+- Mantener precios normalizados en USD/kg para comparabilidad.
+- Si la fuente llega en ARS/kg, convertir con tipo de cambio de referencia (ver Sección 6).
+
+===============================================================================
+2) ÍNDICE DE MATERIALES (IM) — (ANTES “FVD / Ve”)
+-------------------------------------------------------------------------------
+IMPORTANTE:
+- Para stablecoin con peg a USD, el “valor del EcoCoin” NO debe fluctuar con materiales.
+- El índice de materiales se usa para:
+  (a) calcular recompensas de reciclaje en forma “justa” y sostenible,
+  (b) gestionar riesgo/planificación de reservas,
+  (c) definir haircuts y límites de emisión.
+NO se usa para cambiar el peg.
+
+2.1 Fórmula del Índice de Materiales (IM) (corregida)
+IM_usd = ( ((Pc*Wc) + (Pp*Wp) + (Pv*Wv)) / K ) * (1 - CO)
+
+Donde:
+- IM_usd: índice (USD/kg “escalado”, según K)
+- Pc, Pp, Pv: precios de mercado en USD/kg (Cartón, Plástico, Vidrio)
+- Wc, Wp, Wv: pesos de importancia (deben sumar 1)
+  Recomendación inicial: Wc=0.4, Wp=0.5, Wv=0.1
+- K: constante de escala (solo para llevar el índice a rango útil)
+  Recomendación: calibrar K con datos reales; “10” es placeholder.
+- CO: costo operativo (0.15 recomendado), refleja costos de acopio/logística/merma/operación.
+
+Nota de consistencia:
+- Los paréntesis son obligatorios: el /K debe afectar al total del numerador, no solo a un término.
+
+===============================================================================
+3) PEG Y VALOR DEL ECOCOIN (STABLECOIN)
+-------------------------------------------------------------------------------
+3.1 Peg objetivo (invariante en el sistema)
+- PEG_USD: 1 ECOUSD = 1 USD (a nivel económico)
+- En contabilidad interna (enteros):
+  - 1 ecoCent = 0.01 USD
+  - 100 ecoCents = 1 ECOUSD
+
+3.2 Precio en Marketplace
+- Los precios de productos se mantienen en moneda base del sistema (recomendación: USD o USD-cent).
+- En checkout se congela una “tasa” interna:
+  - costoEcoCents = precioUSDcents (1:1 con ecoCents)
+  - Si el catálogo está en ARS, convertir a USD-cent con FX_ref y congelar snapshot.
+
+3.3 Comisión / spread (si aplica)
+Para sostener operación sin romper el peg:
+- Se recomienda aplicar comisiones explícitas (fees) en:
+  a) emisión por reciclaje (haircut o fee),
+  b) redención (fee),
+  c) marketplace (fee al vendedor o comprador),
+en vez de modificar el peg.
+
+===============================================================================
+4) EMISIÓN (MINT) Y QUEMA (BURN)
+-------------------------------------------------------------------------------
+4.1 Regla de emisión segura (principio)
+Se emite ECOUSD solo si:
+- entra colateral en Reserva primaria (R1), o
+- entra material (R2) aceptado + con haircut conservador + dentro de límites, y existe buffer suficiente.
+
+4.2 Flujo recomendado de reciclaje (operativo)
+Estados del depósito:
+- submitted -> inspected -> approved -> minted (y eventualmente settled al vender material)
+Reglas:
+- No se emite en “submitted”. Se emite al “approved” (verificación de peso/calidad).
+
+4.3 Cálculo de emisión por depósito (en ecoCents)
+Para un material m:
+- valorDepositoUSD = kgAceptados * PrecioUSDporKg(m)
+- valorRiesgoUSD = valorDepositoUSD * (1 - CO) * haircut(m, calidad)
+- ecoCentsMint = floor(valorRiesgoUSD * 100)
+
+Haircut recomendado (ejemplo, ajustar con datos reales):
+- cartón: 25% base (riesgo humedad/merma) + penalización si calidad baja
+- plástico: 15% base
+- vidrio: 20% base (logística/rotura)
+Calidad (ejemplo):
+- “seco/limpio”: 1.00
+- “mixto”: 0.85
+- “húmedo/contaminado”: 0.00 (rechazo) o 0.50 si se procesa igual
+
+4.4 Límites para proteger solvencia
+- dailyMintCap (tope diario de emisión por punto)
+- userMintCap (tope por usuario)
+- operatorMintCap (tope por operador)
+- globalMintCap (tope global)
+- Si reservas/ratio caen por debajo del objetivo, se reduce emisión (o se pausa).
+
+4.5 Quema (burn)
+- Se quema ECOUSD cuando:
+  a) un usuario redime por USD/ARS,
+  b) se paga una comisión en ECOUSD que se retira de circulación,
+  c) se liquida contra un “merchant” que luego cobra fiat (según modelo).
+- Mantener ledger “append-only” con motivo, referencia y snapshot de FX/peg.
+
+===============================================================================
+5) REDENCIÓN (REDEEM) POR USD / ARS
+-------------------------------------------------------------------------------
+Requisito del usuario: redimible por ARS/USD, peg a USD.
+
+5.1 Redención a USD
+- Usuario solicita redeem: ecoCents -> USD (montoUSD = ecoCents / 100)
+- Se calcula fee (opcional) y se ejecuta payout por rampa definida (transferencia, USDC, etc.)
+- Se quema ecoCents al confirmar payout (o se bloquea en estado “pending” hasta confirmación).
+
+5.2 Redención a ARS
+- Se calcula montoUSD como arriba y se convierte a ARS usando FX_ref (ver Sección 6):
+  montoARS = montoUSD * FX_USDARS_ref
+- Se aplica fee (opcional) y se paga por transferencia/medio local.
+- Se quema ecoCents según el mismo criterio (confirmación).
+
+5.3 Política de redención
+- SLA (ejemplo): 24-72h hábiles
+- Límites: mínimo/máximo por día, por usuario
+- Requisitos: KYC/AML si corresponde (especialmente para redención a fiat)
+
+===============================================================================
+6) ORÁCULOS, PRECIOS Y TIPO DE CAMBIO (FX)
+-------------------------------------------------------------------------------
+6.1 Precios de materiales (Pc, Pp, Pv)
+- Fuente: galpones/recicladoras asociadas, listas públicas, contratos.
+- Normalización: siempre convertir a USD/kg.
+- Suavizado recomendado: promedio móvil (7-30 días) para reducir volatilidad operativa.
+
+6.2 Tipo de cambio USD/ARS
+Definir FX_USDARS_ref como:
+- una fuente única (o un agregador) + reglas de actualización (diaria)
+- registrar snapshot en cada operación de:
+  a) emisión,
+  b) compra/venta marketplace si está en ARS,
+  c) redención a ARS.
+
+6.3 Control anti-volatilidad
+- Límite de cambio diario del FX_ref usado por el sistema (si la fuente es inestable).
+- Si el FX se sale de tolerancias, pausar redenciones o pasar a modo “manual review”.
+
+===============================================================================
+7) CONTROL DE HUMEDAD Y CALIDAD (REGLAS OPERATIVAS)
+-------------------------------------------------------------------------------
+- Cartón mojado: no aceptar (recomendación: rechazo total) o aplicar factor 0.0.
+- Procedimiento:
+  a) inspección visual + peso
+  b) foto/evidencia (opcional)
+  c) checklist de contaminación
+- Registrar: kg bruto, tara, kg aceptado, calidad, operador verificador.
+
+===============================================================================
+8) SEGURIDAD, AUDITORÍA Y CONTABILIDAD
+-------------------------------------------------------------------------------
+- Ledger inmutable (append-only) para:
+  - mint, burn, transfer, fee, adjustment
+- Idempotencia:
+  - cada operación debe tener un idempotencyKey (por depósito/tx)
+- Conciliación:
+  - reporte diario: ECO en circulación, reservas R1/R2, ratioRespaldo, fees, redenciones pendientes
+- Alertas:
+  - ratioRespaldo < objetivo
+  - spikes de emisión por punto/operador
+  - divergencias entre inventario físico y registros
+
+===============================================================================
+9) BLOCKCHAIN / TOKEN (FUTURO)
+-------------------------------------------------------------------------------
+El roadmap puede incluir ERC-20, pero:
+- Primero se recomienda operar como “stablecoin interna” (ledger centralizado) para:
+  - validar economía, riesgos, cumplimiento, procesos de redención.
+- Si se migra a token:
+  - definir custodia, bridges, comisiones, y mantener la misma disciplina de reservas.
+- Nota: “usar Polygon para comisiones bajas” es técnicamente válido, pero no reemplaza:
+  - KYC/AML,
+  - control de reservas,
+  - procesos de redención.
+
+===============================================================================
+10) HOJA DE RUTA TÉCNICA (ACTUALIZADA)
+-------------------------------------------------------------------------------
+Fase 1 (MVP): Ledger interno + reciclaje verificado
+- Registro de depósitos, verificación, emisión en ecoCents
+- Marketplace acepta ecoCents 1:1 con USD-cent interno (o ARS convertido con FX snapshot)
+- No hay token on-chain
+
+Fase 2: Redención controlada (USD/ARS) + reservas primarias
+- Integración de payouts
+- Políticas de fee, límites, KYC si aplica
+- Reporte de solvencia diario (reservas vs circulación)
+
+Fase 3: Oráculos y automatización de precios
+- Automatizar Pc/Pp/Pv y FX_ref
+- Promedios móviles, límites, monitoreo
+
+Fase 4 (opcional): Tokenización ERC-20
+- Diseño de custodia, emisión/quema on-chain con pruebas de reservas
+- Auditorías y controles reforzados
+
+===============================================================================
+11) APÉNDICE: PARÁMETROS RECOMENDADOS (INICIALES)
+-------------------------------------------------------------------------------
+- CO = 0.15 (ajustable, revisar trimestral)
+- Wp=0.5, Wc=0.4, Wv=0.1
+- ratioRespaldoObjetivo = 1.05
+- unidad mínima: ecoCent (0.01 USD)
+- Haircuts iniciales: cartón 25%, plástico 15%, vidrio 20% (más ajustes por calidad)
+- Promedio móvil precios: 14 días (placeholder)
+
+FIN
