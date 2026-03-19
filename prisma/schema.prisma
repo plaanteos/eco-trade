@@ -41,6 +41,13 @@ enum VerificationStatus {
   rejected
 }
 
+enum ReceiptStatus {
+  none
+  pending
+  issued
+  failed
+}
+
 enum CompanyStatus {
   active
   suspended
@@ -316,6 +323,21 @@ model RecyclingSubmission {
   rewards            Json?
   tracking           Json?
 
+  // TrustScore + evidencia verificable (proyecto personal)
+  trustScore         Int?
+  trustSignals       Json?
+  trustAlgorithmVersion String?
+  trustComputedAt    DateTime?
+  evidenceHash       String?           @unique
+
+  // Recibo verificable (Solana)
+  receiptStatus      ReceiptStatus     @default(none)
+  receiptIssuedAt    DateTime?
+  receiptError       String?
+  solanaCluster      String?
+  solanaSignature    String?           @unique
+  solanaExplorerUrl  String?
+
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -326,6 +348,7 @@ model RecyclingSubmission {
   @@index([createdAt])
   @@index([registeredById])
   @@unique([recyclingPointId, idempotencyKey])
+  @@index([receiptStatus])
 }
 
 model EcoCoinLedger {

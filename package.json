@@ -15,8 +15,10 @@
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:push": "prisma db push",
+    "solana:keygen": "node backend/scripts/solanaKeygen.js",
     "db:check": "node backend/scripts/dbCheck.js",
     "ecocoins:backfill-ledger": "node backend/scripts/backfillEcoCoinLedger.js",
     "bootstrap:superadmin": "node backend/scripts/bootstrapSuperAdmin.js",
@@ -26,6 +28,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.16.1",
+    "@solana/web3.js": "^1.98.4",
     "@supabase/supabase-js": "^2.49.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",

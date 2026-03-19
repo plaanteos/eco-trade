@@ -68,6 +68,7 @@ interface RecyclingPoint {
 interface Submission {
   _id: string;
   submissionCode: string;
+  verificationStatus?: string;
   recyclingPoint?: {
     _id: string;
     name?: string;
@@ -85,6 +86,30 @@ interface Submission {
   rewards?: {
     estimatedEcoCoins?: number;
     totalEcoCoins?: number;
+  };
+
+  // TrustScore + recibo verificable (backend real)
+  trustScore?: number;
+  trustSignals?: unknown;
+  trustAlgorithmVersion?: string;
+  trustComputedAt?: string;
+  evidenceHash?: string;
+  receiptStatus?: 'none' | 'pending' | 'issued' | 'failed' | string;
+  receiptIssuedAt?: string;
+  receiptError?: string;
+  solanaCluster?: string;
+  solanaSignature?: string;
+  solanaExplorerUrl?: string;
+
+  // Forma pública (tracking por code) — opcional
+  trust?: {
+    score?: number;
+  };
+  receipt?: {
+    status?: string;
+    explorerUrl?: string;
+    signature?: string;
+    evidenceHash?: string;
   };
   tracking?: {
     currentStatus?: string;
@@ -922,11 +947,23 @@ export function RecyclingPage() {
                 <div className="space-y-4">
                   {submissions.map((submission) => {
                     const verificationStatus =
-                      submission.verification?.status || 'pending';
+                      submission.verificationStatus ||
+                      submission.verification?.status ||
+                      'pending';
                     const reward =
                       submission.rewards?.totalEcoCoins ??
                       submission.rewards?.estimatedEcoCoins ??
                       0;
+
+                    const trustScore =
+                      submission.trustScore ?? submission.trust?.score;
+
+                    const receiptStatus =
+                      submission.receiptStatus ?? submission.receipt?.status;
+                    const explorerUrl =
+                      submission.solanaExplorerUrl ?? submission.receipt?.explorerUrl;
+                    const signature =
+                      submission.solanaSignature ?? submission.receipt?.signature;
 
                     return (
                       <Card key={submission._id}>
@@ -981,6 +1018,42 @@ export function RecyclingPage() {
                                 <Recycle className="w-4 h-4" />
                               </div>
                             </div>
+
+                            {(trustScore !== undefined || receiptStatus) && (
+                              <div className="pt-2 border-t space-y-1 text-sm">
+                                {trustScore !== undefined && (
+                                  <div className="flex justify-between">
+                                    <span className="font-medium">TrustScore:</span>
+                                    <span className="text-gray-600">{trustScore}/100</span>
+                                  </div>
+                                )}
+
+                                {receiptStatus && receiptStatus !== 'none' && (
+                                  <div className="flex justify-between gap-2">
+                                    <span className="font-medium">Recibo:</span>
+                                    <span className="text-gray-600 text-right">
+                                      {receiptStatus}
+                                      {explorerUrl && (
+                                        <>
+                                          {' '}
+                                          <a
+                                            href={explorerUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="underline"
+                                          >
+                                            Ver en Explorer
+                                          </a>
+                                        </>
+                                      )}
+                                      {!explorerUrl && signature && (
+                                        <span className="ml-2">{signature}</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>

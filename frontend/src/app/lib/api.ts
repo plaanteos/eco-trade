@@ -430,6 +430,13 @@ class ApiClient {
   async getSubmissionByCode(code: string) {
     return this.request<ApiResponse>(`/recycling/submissions/code/${code}`);
   }
+
+  async retrySubmissionReceipt(submissionId: string) {
+    return this.request<ApiResponse>(
+      `/recycling/submissions/${submissionId}/receipt/retry`,
+      { method: 'POST' }
+    );
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);

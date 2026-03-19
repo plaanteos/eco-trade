@@ -1,40 +1,49 @@
-# Configuraciones de base de datos
-DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/ecotrade?schema=public
+# EcoTrade - Ejemplo de variables de entorno
+# Copia este archivo a `.env` y completa los valores.
+# IMPORTANTE: no subas `.env` con secretos reales.
+
+# ===== Base de datos (Prisma + PostgreSQL) =====
+# Ejemplo (local): postgresql://USER:PASSWORD@localhost:5432/ecotrade?schema=public
+# Ejemplo (Supabase): postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/ecotrade?schema=public
+
+# ===== Servidor =====
 PORT=5000
-
-# Configuraciones de Firebase
-FIREBASE_SERVICE_ACCOUNT={"type": "service_account", ...}
-
-# Configuraciones de seguridad
-JWT_SECRET=tu_secret_muy_secreto_y_largo
-JWT_EXPIRATION=7d
-
-# CORS (obligatorio en producción). Lista separada por comas.
-# Ejemplo: https://ecotrade.com,https://www.ecotrade.com
-CORS_ORIGINS=http://localhost:3000
-
-# Modo demo (NO usar en producción)
-DEMO_MODE=false
-
-# Configuraciones de entorno
 NODE_ENV=development
 
-# Supabase (Auth + Storage)
-# URL del proyecto (Settings → API)
-SUPABASE_URL=
+# ===== Seguridad / Auth =====
+JWT_SECRET=change_me_in_production
+JWT_EXPIRATION=24h
 
-# Service role key (Settings → API) - SOLO backend (nunca en frontend)
-SUPABASE_SERVICE_ROLE_KEY=
+# ===== Demo mode =====
+# true = usa controladores y store demo (para tests y sandbox)
+DEMO_MODE=false
 
-# Bucket para imágenes (Storage → Buckets)
-SUPABASE_STORAGE_BUCKET=ecotrade.media
+# ===== Rate limit tracking público de reciclaje =====
+# Ventana y máximo para GET /api/recycling/submissions/code/:code
+RECYCLING_PUBLIC_TRACKING_RL_WINDOW_MS=900000
+RECYCLING_PUBLIC_TRACKING_RL_MAX=30
 
-# Bootstrap del primer super_admin (solo para inicialización)
-# Uso: npm run bootstrap:superadmin
+# ===== Recibo verificable (Solana) =====
+# Si está deshabilitado, la verificación no intentará emitir receipt.
+SOLANA_RECEIPTS_ENABLED=false
+
+# devnet o mainnet-beta
+SOLANA_CLUSTER=devnet
+
+# Opcional. Si no se define, se usa clusterApiUrl(cluster)
+# SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# Payer secret en UNO de estos formatos:
+# - JSON array: [1,2,3,...]
+# - base64: (bytes de secretKey)
+# SOLANA_PAYER_SECRET=
+
+# Tip: genera un payer para dev con:
+#   npm run solana:keygen
+
+# ===== Bootstrap super admin (solo inicialización) =====
 SUPER_ADMIN_EMAIL=admin@ecotrade.com
 SUPER_ADMIN_USERNAME=superadmin
-# Recomendado >= 16 caracteres (evitar patrones comunes)
-# Sugerencia: no lo guardes en archivo; configúralo como secreto del entorno
-SUPER_ADMIN_PASSWORD=
-# Opcional (por defecto AR)
+SUPER_ADMIN_PASSWORD=change_me
 SUPER_ADMIN_COUNTRY=AR

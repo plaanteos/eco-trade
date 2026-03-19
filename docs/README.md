@@ -16,6 +16,7 @@ Plataforma de economía circular para intercambio de productos y ecoCoins.
 
 ## Instalación y ejecución (monorepo)
 1. Copia `env-example.txt` a `.env` y completa variables (especialmente `DATABASE_URL`).
+   - Si vas a usar recibos Solana: completa `SOLANA_*` (ver `docs/INTEGRACION_SOLANA_TRUSTSCORE.md`).
 2. Instala dependencias del backend (raíz):
    ```bash
    npm install

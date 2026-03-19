@@ -115,5 +115,6 @@ router.get('/submissions/code/:code', publicTrackingLimiter, recyclingSubmission
 router.get('/submissions/pending', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.getPendingSubmissions);
 router.patch('/submissions/:submissionId/status', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.updateSubmissionStatus);
 router.patch('/submissions/:submissionId/verify', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.verifySubmission);
+router.post('/submissions/:submissionId/receipt/retry', authenticate, requirePermission('recycling:submission:verify'), recyclingSubmissionController.retrySubmissionReceipt);
 
 module.exports = router;

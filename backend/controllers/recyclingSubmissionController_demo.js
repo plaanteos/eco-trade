@@ -1,4 +1,17 @@
 const { store } = require('../utils/demoStore');
+const { computeTrustScoreForRecyclingSubmission } = require('../utils/trustScore');
+const { buildRecyclingEvidencePayload, computeEvidenceHash } = require('../utils/evidenceHash');
+
+function envBool(name, fallback = false) {
+  const v = String(process.env[name] ?? '').trim().toLowerCase();
+  if (!v) return Boolean(fallback);
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+function fakeSolanaSignature(evidenceHash) {
+  const h = String(evidenceHash || '').slice(0, 32);
+  return `DEMO_SOL_${h || Date.now().toString(16)}`;
+}
 
 function canMaterial(point, materialType) {
   const accepted = point?.acceptedMaterials || [];
@@ -187,6 +200,25 @@ exports.getSubmissionByCode = async (req, res) => {
         createdAt: submission.createdAt,
         verificationStatus: submission.verification?.status,
         recyclingPoint: point ? { name: point.name, city: point.city } : undefined,
+        trust: submission.trustScore !== undefined
+          ? {
+              score: submission.trustScore,
+              signals: submission.trustSignals || [],
+              algorithmVersion: submission.trustAlgorithmVersion || undefined,
+              computedAt: submission.trustComputedAt || undefined,
+            }
+          : undefined,
+        receipt: submission.receiptStatus && submission.receiptStatus !== 'none'
+          ? {
+              status: submission.receiptStatus,
+              issuedAt: submission.receiptIssuedAt || undefined,
+              network: 'solana',
+              cluster: submission.solanaCluster || 'devnet',
+              signature: submission.solanaSignature || undefined,
+              explorerUrl: submission.solanaExplorerUrl || undefined,
+              evidenceHash: submission.evidenceHash || undefined,
+            }
+          : undefined,
         tracking: {
           currentStatus: tracking.currentStatus,
           history,
@@ -291,7 +323,8 @@ exports.verifySubmission = async (req, res) => {
 
   submission.verification.status = verificationStatus;
   submission.verification.verifiedBy = req.userId;
-  submission.verification.verificationDate = new Date().toISOString();
+  const verificationDate = new Date();
+  submission.verification.verificationDate = verificationDate.toISOString();
   submission.verification.verificationNotes = verificationNotes || '';
 
   if (Array.isArray(actualWeights)) {
@@ -319,6 +352,48 @@ exports.verifySubmission = async (req, res) => {
     submission.rewards.rewardDistributed = true;
     submission.tracking.currentStatus = 'completed';
 
+    // Trust + evidencia (modo demo)
+    const verifiedMaterials = submission.materials.map((m) => ({
+      materialType: m.materialType,
+      weight: Number(m.actualWeight ?? m.estimatedWeight) || 0,
+      rewardPerKg: Number(m.rewardPerKg ?? 0) || 0,
+    }));
+
+    const trust = computeTrustScoreForRecyclingSubmission({
+      verificationStatus,
+      actualTotalWeight: submission.submissionDetails.actualTotalWeight,
+      verifiedMaterials,
+      isPointAdmin: true,
+      isPlatformAdmin: false,
+      hasRegisteredBy: Boolean(submission.createdByUserId),
+    });
+
+    const evidencePayload = buildRecyclingEvidencePayload({
+      submissionCode: submission.submissionCode,
+      recyclingPointId: submission.recyclingPoint,
+      verificationStatus,
+      verificationDate,
+      verifiedMaterials,
+      actualTotalWeight: submission.submissionDetails.actualTotalWeight,
+    });
+
+    submission.trustScore = trust.score;
+    submission.trustSignals = trust.signals;
+    submission.trustAlgorithmVersion = trust.algorithmVersion;
+    submission.trustComputedAt = verificationDate.toISOString();
+    submission.evidenceHash = computeEvidenceHash(evidencePayload);
+
+    if (envBool('SOLANA_RECEIPTS_ENABLED', false)) {
+      const sig = fakeSolanaSignature(submission.evidenceHash);
+      submission.receiptStatus = 'issued';
+      submission.receiptIssuedAt = new Date().toISOString();
+      submission.solanaCluster = String(process.env.SOLANA_CLUSTER || 'devnet');
+      submission.solanaSignature = sig;
+      submission.solanaExplorerUrl = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${encodeURIComponent(submission.solanaCluster)}`;
+    } else {
+      submission.receiptStatus = 'none';
+    }
+
     store.addEcoCoins(submission.user, totalEcoCoins, {
       reason: 'recycling:reward',
       recyclingSubmissionId: submissionId,
@@ -344,4 +419,33 @@ exports.verifySubmission = async (req, res) => {
       environmentalImpact: {},
     },
   });
+};
+
+exports.retrySubmissionReceipt = async (req, res) => {
+  const { submissionId } = req.params;
+  const submission = store.getSubmission(submissionId);
+  if (!submission) {
+    return res.status(404).json({ success: false, message: 'Submission no encontrada' });
+  }
+
+  if (!envBool('SOLANA_RECEIPTS_ENABLED', false)) {
+    return res.status(400).json({ success: false, message: 'Receipts Solana deshabilitados por configuración' });
+  }
+
+  if (submission.solanaSignature) {
+    return res.json({ success: true, message: 'Receipt ya emitido', data: { submission } });
+  }
+
+  if (!submission.evidenceHash) {
+    return res.status(400).json({ success: false, message: 'No hay evidenceHash para emitir receipt' });
+  }
+
+  const sig = fakeSolanaSignature(submission.evidenceHash);
+  submission.receiptStatus = 'issued';
+  submission.receiptIssuedAt = new Date().toISOString();
+  submission.solanaCluster = String(process.env.SOLANA_CLUSTER || 'devnet');
+  submission.solanaSignature = sig;
+  submission.solanaExplorerUrl = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${encodeURIComponent(submission.solanaCluster)}`;
+  store.submissionsById.set(String(submissionId), submission);
+  return res.json({ success: true, message: 'Receipt emitido (demo)', data: { submission } });
 };

@@ -1,6 +1,15 @@
 const { isConnected } = require('../config/database-config');
 const { getPrisma } = require('../config/prismaClient');
 const { hasPermission } = require('../utils/rbac');
+const { computeTrustScoreForRecyclingSubmission } = require('../utils/trustScore');
+const { buildRecyclingEvidencePayload, computeEvidenceHash } = require('../utils/evidenceHash');
+const { issueMemoReceipt } = require('../utils/solanaReceipt');
+
+function envBool(name, fallback = false) {
+  const v = String(process.env[name] ?? '').trim().toLowerCase();
+  if (!v) return Boolean(fallback);
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
 
 function ensureDb(res) {
   if (!isConnected()) {
@@ -437,18 +446,58 @@ exports.verifySubmission = async (req, res) => {
     const desired = verificationStatus ? String(verificationStatus) : null;
     const status = desired && allowed.has(desired) ? desired : rewards.totalEcoCoins > 0 ? 'approved' : 'rejected';
 
+    const verificationDate = new Date();
+    const verifiedMaterialsForHash = Array.isArray(rewards.items)
+      ? rewards.items.map((i) => ({
+          materialType: i.materialType,
+          weight: i.weight,
+          rewardPerKg: i.rewardPerKg,
+        }))
+      : [];
+
+    const trust = computeTrustScoreForRecyclingSubmission({
+      verificationStatus: status,
+      actualTotalWeight: rewards.actualTotalWeight,
+      verifiedMaterials: verifiedMaterialsForHash,
+      isPointAdmin,
+      isPlatformAdmin,
+      hasRegisteredBy: Boolean(submission.registeredById),
+    });
+
+    const evidencePayload = buildRecyclingEvidencePayload({
+      submissionCode: submission.submissionCode,
+      recyclingPointId: submission.recyclingPointId,
+      verificationStatus: status,
+      verificationDate,
+      verifiedMaterials: verifiedMaterialsForHash,
+      actualTotalWeight: rewards.actualTotalWeight,
+    });
+    const evidenceHash = computeEvidenceHash(evidencePayload);
+
+    const receiptsEnabled = envBool('SOLANA_RECEIPTS_ENABLED', false);
+    const shouldIssueReceipt = receiptsEnabled
+      && (status === 'approved' || status === 'partially_approved')
+      && rewards.totalEcoCoins > 0;
+
     const result = await prisma.$transaction(async (tx) => {
       // Idempotencia + anti-carrera: solo actualiza si sigue pendiente.
       const attempt = await tx.recyclingSubmission.updateMany({
         where: { id: submissionId, verificationStatus: 'pending' },
         data: {
           verifiedById: String(req.userId),
-          verificationDate: new Date(),
+          verificationDate,
           verificationStatus: status,
           verificationNotes: verificationNotes || '',
           submissionDetails: { ...(submission.submissionDetails || {}), actualTotalWeight: rewards.actualTotalWeight, verifiedMaterials: rewards.items },
           rewards: { totalEcoCoins: rewards.totalEcoCoins, breakdown: rewards.items },
           tracking: appendTracking(submission.tracking, 'verified', req.userId),
+          trustScore: trust.score,
+          trustSignals: trust.signals,
+          trustAlgorithmVersion: trust.algorithmVersion,
+          trustComputedAt: verificationDate,
+          evidenceHash,
+          receiptStatus: shouldIssueReceipt ? 'pending' : 'none',
+          receiptError: null,
         },
       });
 
@@ -524,14 +573,142 @@ exports.verifySubmission = async (req, res) => {
       return { submission: finalSubmission || current, updatedNow };
     });
 
+    // Emisión opcional del recibo on-chain (fuera de la transacción DB)
+    let finalToReturn = result.submission;
+    if (result.updatedNow && shouldIssueReceipt && !result.submission.solanaSignature) {
+      try {
+        const issued = await issueMemoReceipt({
+          submissionCode: result.submission.submissionCode,
+          evidenceHash: result.submission.evidenceHash,
+          trustScore: result.submission.trustScore,
+        });
+
+        finalToReturn = await prisma.recyclingSubmission.update({
+          where: { id: submissionId },
+          data: {
+            receiptStatus: 'issued',
+            receiptIssuedAt: new Date(),
+            receiptError: null,
+            solanaCluster: issued.cluster,
+            solanaSignature: issued.signature,
+            solanaExplorerUrl: issued.explorerUrl,
+          },
+          include: {
+            user: { select: { id: true, username: true, email: true, recyclingCode: true, ecoCoins: true } },
+            recyclingPoint: { select: { id: true, name: true, city: true } },
+            verifiedBy: { select: { id: true, username: true, email: true } },
+          },
+        });
+      } catch (err) {
+        const msg = String(err?.message || 'Error emitiendo recibo Solana');
+        finalToReturn = await prisma.recyclingSubmission.update({
+          where: { id: submissionId },
+          data: {
+            receiptStatus: 'failed',
+            receiptError: msg,
+          },
+          include: {
+            user: { select: { id: true, username: true, email: true, recyclingCode: true, ecoCoins: true } },
+            recyclingPoint: { select: { id: true, name: true, city: true } },
+            verifiedBy: { select: { id: true, username: true, email: true } },
+          },
+        });
+      }
+    }
+
     return res.json({
       success: true,
       message: result.updatedNow ? 'Entrega verificada' : 'Entrega ya verificada (idempotente)',
-      data: { submission: { ...result.submission, _id: result.submission.id } },
+      data: { submission: { ...finalToReturn, _id: finalToReturn.id } },
     });
   } catch (error) {
     console.error('Error en verifySubmission:', error);
     return res.status(500).json({ success: false, message: 'Error al verificar entrega', details: error.message });
+  }
+};
+
+exports.retrySubmissionReceipt = async (req, res) => {
+  try {
+    if (!ensureDb(res)) return;
+
+    const submissionId = String(req.params.submissionId || req.params.id);
+    const prisma = getPrisma();
+
+    const submission = await prisma.recyclingSubmission.findUnique({
+      where: { id: submissionId },
+      select: {
+        id: true,
+        submissionCode: true,
+        verificationStatus: true,
+        trustScore: true,
+        evidenceHash: true,
+        receiptStatus: true,
+        solanaSignature: true,
+      },
+    });
+
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
+    }
+
+    const isPlatformAdmin = req.user && hasPermission(req.user, 'recycling:point:manage:any');
+    if (!isPlatformAdmin) {
+      return res.status(403).json({ success: false, message: 'Solo un admin de plataforma puede reintentar receipts' });
+    }
+
+    const receiptsEnabled = envBool('SOLANA_RECEIPTS_ENABLED', false);
+    if (!receiptsEnabled) {
+      return res.status(400).json({ success: false, message: 'Receipts Solana deshabilitados por configuración' });
+    }
+
+    if (submission.solanaSignature) {
+      return res.json({ success: true, message: 'Receipt ya emitido', data: { submission } });
+    }
+
+    if (!submission.evidenceHash || typeof submission.trustScore !== 'number') {
+      return res.status(400).json({ success: false, message: 'No hay evidenceHash/trustScore para emitir receipt' });
+    }
+
+    if (!['approved', 'partially_approved'].includes(String(submission.verificationStatus))) {
+      return res.status(400).json({ success: false, message: 'Solo se emite receipt para entregas aprobadas' });
+    }
+
+    await prisma.recyclingSubmission.update({
+      where: { id: submissionId },
+      data: { receiptStatus: 'pending', receiptError: null },
+    });
+
+    try {
+      const issued = await issueMemoReceipt({
+        submissionCode: submission.submissionCode,
+        evidenceHash: submission.evidenceHash,
+        trustScore: submission.trustScore,
+      });
+
+      const updated = await prisma.recyclingSubmission.update({
+        where: { id: submissionId },
+        data: {
+          receiptStatus: 'issued',
+          receiptIssuedAt: new Date(),
+          receiptError: null,
+          solanaCluster: issued.cluster,
+          solanaSignature: issued.signature,
+          solanaExplorerUrl: issued.explorerUrl,
+        },
+      });
+
+      return res.json({ success: true, message: 'Receipt emitido', data: { submission: { ...updated, _id: updated.id } } });
+    } catch (err) {
+      const msg = String(err?.message || 'Error emitiendo receipt');
+      const updated = await prisma.recyclingSubmission.update({
+        where: { id: submissionId },
+        data: { receiptStatus: 'failed', receiptError: msg },
+      });
+      return res.status(502).json({ success: false, message: 'Error emitiendo receipt', details: msg, data: { submission: { ...updated, _id: updated.id } } });
+    }
+  } catch (error) {
+    console.error('Error en retrySubmissionReceipt:', error);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
 
@@ -625,6 +802,16 @@ exports.getSubmissionByCode = async (req, res) => {
         tracking: true,
         verificationStatus: true,
         verificationDate: true,
+        trustScore: true,
+        trustSignals: true,
+        trustAlgorithmVersion: true,
+        trustComputedAt: true,
+        evidenceHash: true,
+        receiptStatus: true,
+        receiptIssuedAt: true,
+        solanaCluster: true,
+        solanaSignature: true,
+        solanaExplorerUrl: true,
         recyclingPoint: { select: { name: true, city: true } },
       },
     });
@@ -647,6 +834,25 @@ exports.getSubmissionByCode = async (req, res) => {
           verificationStatus: submission.verificationStatus,
           verificationDate: submission.verificationDate,
           recyclingPoint: submission.recyclingPoint || undefined,
+          trust: submission.trustScore !== null && submission.trustScore !== undefined
+            ? {
+                score: submission.trustScore,
+                signals: submission.trustSignals || [],
+                algorithmVersion: submission.trustAlgorithmVersion || undefined,
+                computedAt: submission.trustComputedAt || undefined,
+              }
+            : undefined,
+          receipt: submission.receiptStatus && submission.receiptStatus !== 'none'
+            ? {
+                status: submission.receiptStatus,
+                issuedAt: submission.receiptIssuedAt || undefined,
+                network: 'solana',
+                cluster: submission.solanaCluster || undefined,
+                signature: submission.solanaSignature || undefined,
+                explorerUrl: submission.solanaExplorerUrl || undefined,
+                evidenceHash: submission.evidenceHash || undefined,
+              }
+            : undefined,
           tracking: {
             currentStatus: tracking.currentStatus || undefined,
             history,
