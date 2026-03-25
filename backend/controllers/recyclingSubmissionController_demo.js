@@ -1,6 +1,8 @@
 const { store } = require('../utils/demoStore');
 const { computeTrustScoreForRecyclingSubmission } = require('../utils/trustScore');
 const { buildRecyclingEvidencePayload, computeEvidenceHash } = require('../utils/evidenceHash');
+const { calculateCO2AvoidedKg } = require('../utils/recyclingCO2');
+const { deriveDeterministicOperatorId } = require('../utils/operatorId');
 
 function envBool(name, fallback = false) {
   const v = String(process.env[name] ?? '').trim().toLowerCase();
@@ -368,6 +370,9 @@ exports.verifySubmission = async (req, res) => {
       hasRegisteredBy: Boolean(submission.createdByUserId),
     });
 
+    const operatorId = deriveDeterministicOperatorId(req.userId);
+    const co2AvoidedKg = calculateCO2AvoidedKg(verifiedMaterials);
+
     const evidencePayload = buildRecyclingEvidencePayload({
       submissionCode: submission.submissionCode,
       recyclingPointId: submission.recyclingPoint,
@@ -375,6 +380,8 @@ exports.verifySubmission = async (req, res) => {
       verificationDate,
       verifiedMaterials,
       actualTotalWeight: submission.submissionDetails.actualTotalWeight,
+      operatorId,
+      co2AvoidedKg,
     });
 
     submission.trustScore = trust.score;

@@ -11,7 +11,9 @@ function buildRecyclingEvidencePayload({
   verificationStatus,
   verificationDate,
   verifiedMaterials,
-  actualTotalWeight,
+ actualTotalWeight,
+ operatorId,
+ co2AvoidedKg,
 }) {
   const materials = Array.isArray(verifiedMaterials)
     ? verifiedMaterials.map((m) => ({
@@ -24,11 +26,17 @@ function buildRecyclingEvidencePayload({
   return {
     type: 'recycling_submission_verification',
     v: 1,
+    // Hackathon spec: on-chain payload uses `sessionNumber`
+    // We keep `submissionCode` for backwards compatibility inside our system.
+    sessionNumber: String(submissionCode),
     submissionCode: String(submissionCode),
     recyclingPointId: String(recyclingPointId),
     verificationStatus: String(verificationStatus),
     verificationDate: verificationDate ? new Date(verificationDate).toISOString() : null,
+    operatorId: operatorId ? String(operatorId) : undefined,
+    totalKg: Number(actualTotalWeight ?? 0) || 0,
     actualTotalWeight: Number(actualTotalWeight ?? 0) || 0,
+    co2Avoided: Number(co2AvoidedKg ?? 0) || 0,
     verifiedMaterials: materials,
   };
 }

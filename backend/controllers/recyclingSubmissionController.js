@@ -3,7 +3,9 @@ const { getPrisma } = require('../config/prismaClient');
 const { hasPermission } = require('../utils/rbac');
 const { computeTrustScoreForRecyclingSubmission } = require('../utils/trustScore');
 const { buildRecyclingEvidencePayload, computeEvidenceHash } = require('../utils/evidenceHash');
+const { calculateCO2AvoidedKg } = require('../utils/recyclingCO2');
 const { issueMemoReceipt } = require('../utils/solanaReceipt');
+const { deriveDeterministicOperatorId } = require('../utils/operatorId');
 
 function envBool(name, fallback = false) {
   const v = String(process.env[name] ?? '').trim().toLowerCase();
@@ -464,6 +466,9 @@ exports.verifySubmission = async (req, res) => {
       hasRegisteredBy: Boolean(submission.registeredById),
     });
 
+    const operatorId = deriveDeterministicOperatorId(req.userId);
+    const co2AvoidedKg = calculateCO2AvoidedKg(verifiedMaterialsForHash);
+
     const evidencePayload = buildRecyclingEvidencePayload({
       submissionCode: submission.submissionCode,
       recyclingPointId: submission.recyclingPointId,
@@ -471,6 +476,8 @@ exports.verifySubmission = async (req, res) => {
       verificationDate,
       verifiedMaterials: verifiedMaterialsForHash,
       actualTotalWeight: rewards.actualTotalWeight,
+      operatorId,
+      co2AvoidedKg,
     });
     const evidenceHash = computeEvidenceHash(evidencePayload);
 
@@ -578,8 +585,12 @@ exports.verifySubmission = async (req, res) => {
     if (result.updatedNow && shouldIssueReceipt && !result.submission.solanaSignature) {
       try {
         const issued = await issueMemoReceipt({
-          submissionCode: result.submission.submissionCode,
+          sessionNumber: result.submission.submissionCode,
+          totalKg: Number(result.submission.submissionDetails?.actualTotalWeight ?? rewards.actualTotalWeight) || 0,
           evidenceHash: result.submission.evidenceHash,
+          co2Avoided: co2AvoidedKg,
+          operatorId,
+          timestamp: verificationDate,
           trustScore: result.submission.trustScore,
         });
 
@@ -644,6 +655,9 @@ exports.retrySubmissionReceipt = async (req, res) => {
         evidenceHash: true,
         receiptStatus: true,
         solanaSignature: true,
+        verifiedById: true,
+        verificationDate: true,
+        submissionDetails: true,
       },
     });
 
@@ -678,10 +692,19 @@ exports.retrySubmissionReceipt = async (req, res) => {
       data: { receiptStatus: 'pending', receiptError: null },
     });
 
+    const operatorId = deriveDeterministicOperatorId(submission.verifiedById || req.userId);
+    const totalKg = Number(submission.submissionDetails?.actualTotalWeight ?? 0) || 0;
+    const co2AvoidedKg = calculateCO2AvoidedKg(submission.submissionDetails?.verifiedMaterials || []);
+    const timestamp = submission.verificationDate || new Date();
+
     try {
       const issued = await issueMemoReceipt({
-        submissionCode: submission.submissionCode,
+        sessionNumber: submission.submissionCode,
+        totalKg,
         evidenceHash: submission.evidenceHash,
+        co2Avoided: co2AvoidedKg,
+        operatorId,
+        timestamp,
         trustScore: submission.trustScore,
       });
 
@@ -807,6 +830,7 @@ exports.getSubmissionByCode = async (req, res) => {
         trustAlgorithmVersion: true,
         trustComputedAt: true,
         evidenceHash: true,
+        submissionDetails: true,
         receiptStatus: true,
         receiptIssuedAt: true,
         solanaCluster: true,
@@ -851,6 +875,9 @@ exports.getSubmissionByCode = async (req, res) => {
                 signature: submission.solanaSignature || undefined,
                 explorerUrl: submission.solanaExplorerUrl || undefined,
                 evidenceHash: submission.evidenceHash || undefined,
+                totalKg: Number(submission.submissionDetails?.actualTotalWeight ?? 0) || 0,
+                co2Avoided: calculateCO2AvoidedKg(submission.submissionDetails?.verifiedMaterials || []),
+                operatorId: deriveDeterministicOperatorId(),
               }
             : undefined,
           tracking: {

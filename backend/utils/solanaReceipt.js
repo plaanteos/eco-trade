@@ -22,7 +22,18 @@ function explorerUrlForSignature(signature, cluster) {
   return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=${encodeURIComponent(c)}`;
 }
 
-async function issueMemoReceipt({ submissionCode, evidenceHash, trustScore }) {
+async function issueMemoReceipt({
+  // Hackathon spec
+  sessionNumber,
+  totalKg,
+  evidenceHash,
+  co2Avoided,
+  operatorId,
+  timestamp,
+  // Backwards compatibility (we still accept `submissionCode`)
+  submissionCode,
+  trustScore,
+}) {
   if (!envBool('SOLANA_RECEIPTS_ENABLED', false)) {
     const err = new Error('SOLANA_RECEIPTS_ENABLED=false');
     err.code = 'SOLANA_DISABLED';
@@ -63,13 +74,17 @@ async function issueMemoReceipt({ submissionCode, evidenceHash, trustScore }) {
 
   const memoProgramId = new web3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
+  const memoTimestamp = timestamp ? new Date(timestamp).toISOString() : new Date().toISOString();
   const memo = JSON.stringify({
+    // Required fields (hackathon)
     t: 'ecotrade-recycling-receipt',
     v: 1,
-    submissionCode: String(submissionCode),
+    sessionNumber: String(sessionNumber ?? submissionCode),
+    totalKg: Number(totalKg ?? 0) || 0,
     evidenceHash: String(evidenceHash),
-    trustScore: Number(trustScore ?? 0) || 0,
-    ts: new Date().toISOString(),
+    co2Avoided: Number(co2Avoided ?? 0) || 0,
+    operatorId: operatorId ? String(operatorId) : undefined,
+    timestamp: memoTimestamp,
   });
 
   const ix = new web3.TransactionInstruction({
