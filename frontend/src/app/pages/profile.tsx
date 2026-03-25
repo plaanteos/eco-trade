@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from 'qrcode';
+import { SolanaReceipt } from '../components/editorial/SolanaReceipt';
 
 interface Product {
   _id: string;
@@ -125,6 +126,8 @@ export function ProfilePage() {
     }).format(price);
   };
 
+  // --- INTEGRACIÓN WALLET SOLANA ---
+  // Mostrar wallet derivada si existe
   return (
     <div className="space-y-6">
       <div>
@@ -207,6 +210,24 @@ export function ProfilePage() {
                   No disponible
                 </div>
               )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Wallet Solana */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Wallet Solana vinculada</CardTitle>
+          <CardDescription>
+            Tu dirección Solana única para EcoTrade (derivada de tu cuenta Google).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm text-gray-600">Dirección Solana</Label>
+            <div className="mt-2 font-mono text-lg border rounded-md px-3 py-2 bg-white break-all">
+              {(user as any)?.walletAddress || 'No disponible'}
             </div>
           </div>
         </CardContent>
